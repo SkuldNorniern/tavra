@@ -119,8 +119,12 @@ fn scan_unicode_escape(cur: &mut Cursor) -> Result<char, Error> {
         return Err(cur.error("expected '{' after \\u"));
     }
     let mut digits = String::new();
-    while cur.peek().is_some_and(|c| c != '}') {
-        digits.push(cur.bump().unwrap());
+    while let Some(c) = cur.peek() {
+        if c == '}' {
+            break;
+        }
+        digits.push(c);
+        cur.bump();
     }
     if cur.bump() != Some('}') {
         return Err(cur.error("unterminated unicode escape"));

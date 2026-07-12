@@ -250,7 +250,7 @@ mod tests {
 
     #[test]
     fn floats() {
-        assert_eq!(scan("3.14").unwrap(), Value::from(3.14f64));
+        assert_eq!(scan("3.25").unwrap(), Value::from(3.25_f64));
         assert_eq!(scan("-2.5e10").unwrap(), Value::from(-2.5e10f64));
         assert_eq!(scan("1e-3").unwrap(), Value::from(1e-3f64));
     }
