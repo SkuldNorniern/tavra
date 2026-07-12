@@ -1,3 +1,6 @@
+use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
+
 /// The canonical quiet NaN bit pattern all NaNs collapse to.
 const CANONICAL_NAN_BITS: u64 = 0x7FF8_0000_0000_0000;
 
@@ -36,19 +39,19 @@ impl PartialEq for Float {
 impl Eq for Float {}
 
 impl PartialOrd for Float {
-    fn partial_cmp(&self, other: &Float) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Float) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Float {
-    fn cmp(&self, other: &Float) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Float) -> Ordering {
         self.0.total_cmp(&other.0)
     }
 }
 
-impl std::hash::Hash for Float {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for Float {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.to_bits().hash(state);
     }
 }
@@ -81,7 +84,7 @@ mod tests {
     fn total_order_consistent_with_eq() {
         let a = Float::new(f64::NAN);
         let b = Float::new(-f64::NAN);
-        assert_eq!(a.cmp(&b), std::cmp::Ordering::Equal);
+        assert_eq!(a.cmp(&b), Ordering::Equal);
         assert_eq!(a, b);
     }
 }

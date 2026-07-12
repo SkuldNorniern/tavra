@@ -1,3 +1,5 @@
+use std::fmt::{self, Display, Formatter};
+
 /// A Tavra integer: one logical type covering the range i64 ∪ u64
 /// (−2⁶³ ‥ 2⁶⁴−1).
 ///
@@ -78,8 +80,8 @@ impl From<u64> for Int {
     }
 }
 
-impl std::fmt::Display for Int {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Int {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.0 {
             Repr::Small(v) => write!(f, "{v}"),
             Repr::Big(v) => write!(f, "{v}"),

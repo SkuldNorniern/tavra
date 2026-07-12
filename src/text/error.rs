@@ -1,3 +1,6 @@
+use std::error::Error as StdError;
+use std::fmt::{self, Display, Formatter};
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Error {
     pub line: u32,
@@ -11,10 +14,10 @@ impl Error {
     }
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}: {}", self.line, self.col, self.message)
     }
 }
 
-impl std::error::Error for Error {}
+impl StdError for Error {}
