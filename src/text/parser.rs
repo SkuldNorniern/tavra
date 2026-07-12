@@ -94,7 +94,7 @@ fn parse_key(cur: &mut Cursor) -> Result<String, Error> {
     }
 }
 
-fn is_bare_key_char(c: char) -> bool {
+pub(crate) fn is_bare_key_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_' || c == '-'
 }
 
