@@ -1,8 +1,11 @@
-use std::fs;
+use std::{env, fs};
 use std::process::ExitCode;
 
+use tavra::text;
+use tavra::Value;
+
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let args: Vec<String> = env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("fmt") => cmd_fmt(&args[1..]),
         Some("check") => cmd_check(&args[1..]),
@@ -28,15 +31,16 @@ fn cmd_fmt(args: &[String]) -> ExitCode {
         }
     };
 
-    let doc = match tavra::text::parse(&source) {
-        Ok(v) => v,
+    let root = match text::parse(&source) {
+        Ok(Value::Map(root)) => root,
+        Ok(_) => unreachable!("document root is always a map"),
         Err(e) => {
             eprintln!("{path}:{e}");
             return ExitCode::FAILURE;
         }
     };
 
-    let formatted = tavra::text::format(doc.as_map().expect("document root is always a map"));
+    let formatted = text::format(&root);
 
     if write {
         if let Err(e) = fs::write(path, &formatted) {
@@ -63,7 +67,7 @@ fn cmd_check(args: &[String]) -> ExitCode {
         }
     };
 
-    match tavra::text::parse(&source) {
+    match text::parse(&source) {
         Ok(_) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("{path}:{e}");
