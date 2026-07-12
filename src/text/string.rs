@@ -158,7 +158,44 @@ fn hex_val(b: u8) -> Option<u8> {
     }
 }
 
+/// Encodes bytes as lowercase hex, for `b"…"` literals.
+pub fn encode_hex(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        out.push_str(&format!("{b:02x}"));
+    }
+    out
+}
+
 const BASE64_ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/// Encodes bytes as standard padded base64, for `b64"…"` literals.
+pub fn encode_base64(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0];
+        let b1 = chunk.get(1).copied();
+        let b2 = chunk.get(2).copied();
+        out.push(BASE64_ALPHABET[(b0 >> 2) as usize] as char);
+        let idx1 = ((b0 & 0x03) << 4) | (b1.unwrap_or(0) >> 4);
+        out.push(BASE64_ALPHABET[idx1 as usize] as char);
+        match (b1, b2) {
+            (Some(b1), Some(b2)) => {
+                out.push(BASE64_ALPHABET[(((b1 & 0x0F) << 2) | (b2 >> 6)) as usize] as char);
+                out.push(BASE64_ALPHABET[(b2 & 0x3F) as usize] as char);
+            }
+            (Some(b1), None) => {
+                out.push(BASE64_ALPHABET[((b1 & 0x0F) << 2) as usize] as char);
+                out.push('=');
+            }
+            (None, _) => {
+                out.push('=');
+                out.push('=');
+            }
+        }
+    }
+    out
+}
 
 /// Decodes a `b64"..."` literal body: standard RFC 4648 alphabet, required
 /// padding, no embedded whitespace.
@@ -268,5 +305,22 @@ mod tests {
         let cur = Cursor::new("");
         assert_eq!(decode_base64_bytes(&cur, "aGVsbG8gd29ybGQ=").unwrap(), b"hello world");
         assert_eq!(decode_base64_bytes(&cur, "").unwrap(), Vec::<u8>::new());
+    }
+
+    #[test]
+    fn hex_encode_matches_decode() {
+        let cur = Cursor::new("");
+        let bytes = vec![0xde, 0xad, 0xbe, 0xef];
+        assert_eq!(encode_hex(&bytes), "deadbeef");
+        assert_eq!(decode_hex_bytes(&cur, &encode_hex(&bytes)).unwrap(), bytes);
+    }
+
+    #[test]
+    fn base64_encode_matches_decode() {
+        let cur = Cursor::new("");
+        for bytes in [b"hello world".to_vec(), vec![1, 2, 3], vec![1, 2], vec![1], vec![]] {
+            let encoded = encode_base64(&bytes);
+            assert_eq!(decode_base64_bytes(&cur, &encoded).unwrap(), bytes);
+        }
     }
 }
