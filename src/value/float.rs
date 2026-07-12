@@ -28,6 +28,19 @@ impl Float {
     pub fn to_bits(self) -> u64 {
         self.0.to_bits()
     }
+
+    /// Builds a `Float` from raw bits, rejecting any NaN pattern other than
+    /// the canonical one — used by the binary decoder, where a
+    /// non-canonical NaN encoding must be a decode error rather than
+    /// silently normalized.
+    pub fn from_bits_checked(bits: u64) -> Option<Float> {
+        let is_nan = (bits & 0x7FF0_0000_0000_0000 == 0x7FF0_0000_0000_0000) && (bits & 0x000F_FFFF_FFFF_FFFF != 0);
+        if is_nan && bits != CANONICAL_NAN_BITS {
+            None
+        } else {
+            Some(Float(f64::from_bits(bits)))
+        }
+    }
 }
 
 impl PartialEq for Float {
@@ -78,6 +91,13 @@ mod tests {
     fn zero_signs_distinct() {
         assert_ne!(Float::new(0.0), Float::new(-0.0));
         assert!(Float::new(-0.0) < Float::new(0.0));
+    }
+
+    #[test]
+    fn from_bits_checked_rejects_noncanonical_nan() {
+        assert!(Float::from_bits_checked(CANONICAL_NAN_BITS).is_some());
+        assert!(Float::from_bits_checked(0xFFF0_0000_0000_0001).is_none());
+        assert!(Float::from_bits_checked(0.0f64.to_bits()).is_some());
     }
 
     #[test]
