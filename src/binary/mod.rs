@@ -3,6 +3,7 @@
 mod decode;
 mod encode;
 mod error;
+mod hash;
 #[cfg(test)]
 mod tests;
 mod varint;
@@ -14,6 +15,11 @@ use crate::value::Map;
 /// Encodes `root` as a complete `.tavb` document (magic + version + value).
 pub fn encode(root: &Map) -> Vec<u8> {
     encode::encode_document(root)
+}
+
+/// A document's canonical identity: `BLAKE3(value_bytes)`.
+pub fn hash(root: &Map) -> [u8; 32] {
+    hash::hash_document(root)
 }
 
 /// Decodes a complete `.tavb` document, rejecting any non-canonical or
