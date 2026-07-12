@@ -25,6 +25,21 @@ pub fn decode_document(bytes: &[u8]) -> Result<Map, Error> {
     Ok(root)
 }
 
+/// Decodes `value_bytes` — a document's root map with no magic/version
+/// prefix (the form used by envelope payloads and document hashing).
+pub fn decode_value_bytes(bytes: &[u8]) -> Result<Map, Error> {
+    let mut pos = 0;
+    let tag = read_u8(bytes, &mut pos)?;
+    if tag != 0x0C {
+        return Err(Error::new(pos - 1, format!("expected map tag 0x0C at document root, found 0x{tag:02X}")));
+    }
+    let root = decode_map(bytes, &mut pos)?;
+    if pos != bytes.len() {
+        return Err(Error::new(pos, "trailing bytes after document"));
+    }
+    Ok(root)
+}
+
 fn read_u8(bytes: &[u8], pos: &mut usize) -> Result<u8, Error> {
     let b = *bytes.get(*pos).ok_or_else(|| Error::new(*pos, "unexpected end of input"))?;
     *pos += 1;

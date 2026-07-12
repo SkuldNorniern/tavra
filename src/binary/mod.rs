@@ -33,3 +33,9 @@ pub fn decode(bytes: &[u8]) -> Result<Map, Error> {
 pub fn encode_value_bytes(root: &Map) -> Vec<u8> {
     encode::encode_value_bytes(root)
 }
+
+/// Decodes value bytes with no magic/version prefix (the counterpart to
+/// `encode_value_bytes`).
+pub fn decode_value_bytes(bytes: &[u8]) -> Result<Map, Error> {
+    decode::decode_value_bytes(bytes)
+}
