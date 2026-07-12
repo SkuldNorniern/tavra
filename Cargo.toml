@@ -13,4 +13,9 @@ unwrap_used = "warn"
 expect_used = "warn"
 
 [dependencies]
+argon2 = "0.5.3"
 blake3 = "1.8.5"
+chacha20poly1305 = "0.11.0"
+ed25519-dalek = "3.0.0"
+rand = "0.10.2"
+zstd = "0.13.3"
