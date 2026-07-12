@@ -3,4 +3,13 @@ name = "tavra"
 version = "0.1.0"
 edition = "2024"
 
+[lints.clippy]
+absolute_paths = "deny"
+result_large_err = "deny"
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+unwrap_used = "warn"
+expect_used = "warn"
+
 [dependencies]
