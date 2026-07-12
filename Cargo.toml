@@ -13,3 +13,4 @@ unwrap_used = "warn"
 expect_used = "warn"
 
 [dependencies]
+blake3 = "1.8.5"
