@@ -2,6 +2,7 @@
 //! a secure envelope (compression, authenticated encryption, signatures).
 
 pub mod binary;
+pub mod envelope;
 pub mod text;
 pub mod value;
 
