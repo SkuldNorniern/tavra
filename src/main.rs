@@ -2,8 +2,8 @@ use std::{env, fs};
 use std::process::ExitCode;
 
 use tavra::envelope::{self, OpenMode, SealMode, SealOptions};
-use tavra::{schema, text};
-use tavra::Value;
+use tavra::{binary, convert, schema, text};
+use tavra::{Map, Value};
 
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -14,6 +14,7 @@ fn main() -> ExitCode {
         Some("gensignkey") => cmd_gensignkey(&args[1..]),
         Some("pack") => cmd_pack(&args[1..]),
         Some("unpack") => cmd_unpack(&args[1..]),
+        Some("convert") => cmd_convert(&args[1..]),
         _ => {
             eprintln!(
                 "usage:\n  \
@@ -22,7 +23,8 @@ fn main() -> ExitCode {
                  tav genkey <keyfile>\n  \
                  tav gensignkey <secretfile> <publicfile>\n  \
                  tav pack <in.tav> <out.tave> [--key <keyfile> | --password <passwordfile>] [--compress] [--sign <secretfile>]\n  \
-                 tav unpack <in.tave> <out.tav> [--key <keyfile> | --password <passwordfile>] [--verify <publicfile>]"
+                 tav unpack <in.tave> <out.tav> [--key <keyfile> | --password <passwordfile>] [--verify <publicfile>]\n  \
+                 tav convert <in> <out>  (in: .tav/.tavb/.json/.toml/.yaml/.yml, out: .tav/.tavb)"
             );
             ExitCode::FAILURE
         }
@@ -310,6 +312,69 @@ fn cmd_unpack(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
+}
+
+fn cmd_convert(args: &[String]) -> ExitCode {
+    let (Some(in_path), Some(out_path)) = (args.first(), args.get(1)) else {
+        eprintln!("usage: tav convert <in> <out>  (in: .tav/.tavb/.json/.toml/.yaml/.yml, out: .tav/.tavb)");
+        return ExitCode::FAILURE;
+    };
+
+    let root = match read_as_map(in_path) {
+        Ok(root) => root,
+        Err(e) => {
+            eprintln!("{in_path}: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let write_result = if out_path.ends_with(".tavb") {
+        fs::write(out_path, binary::encode(&root))
+    } else if out_path.ends_with(".tav") {
+        fs::write(out_path, text::format(&root))
+    } else {
+        eprintln!("{out_path}: unsupported output extension (use .tav or .tavb)");
+        return ExitCode::FAILURE;
+    };
+
+    if let Err(e) = write_result {
+        eprintln!("{out_path}: {e}");
+        return ExitCode::FAILURE;
+    }
+    ExitCode::SUCCESS
+}
+
+/// Reads `path` and parses it into a document root, dispatching on file
+/// extension. `.tav`/`.tavb` go through this crate's own parser/decoder;
+/// `.json`/`.toml`/`.yaml`/`.yml` go through the corresponding import
+/// adapter (`tavra::convert`) — import only, there is no export back to
+/// those formats.
+fn read_as_map(path: &str) -> Result<Map, String> {
+    if path.ends_with(".tav") {
+        let source = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        return match text::parse(&source) {
+            Ok(Value::Map(root)) => Ok(root),
+            Ok(_) => unreachable!("document root is always a map"),
+            Err(e) => Err(e.to_string()),
+        };
+    }
+    if path.ends_with(".tavb") {
+        let bytes = fs::read(path).map_err(|e| e.to_string())?;
+        return binary::decode(&bytes).map_err(|e| e.to_string());
+    }
+    if path.ends_with(".json") {
+        let source = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        return convert::from_json(&source).map_err(|e| e.to_string());
+    }
+    if path.ends_with(".toml") {
+        let source = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        return convert::from_toml(&source).map_err(|e| e.to_string());
+    }
+    if path.ends_with(".yaml") || path.ends_with(".yml") {
+        let source = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        return convert::from_yaml(&source).map_err(|e| e.to_string());
+    }
+    Err("unsupported input extension (use .tav/.tavb/.json/.toml/.yaml/.yml)".to_string())
 }
 
 /// Reads a fixed-size key/secret from a file — key material comes from
