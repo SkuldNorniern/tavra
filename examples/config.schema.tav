@@ -1,0 +1,35 @@
+# Schema for config.tav — itself a plain .tav document.
+
+type = "map"
+fields = {
+    name = { type = "string" }
+    port = { type = "int" }
+    debug = { type = "bool", optional = true }
+
+    server = {
+        type = "map"
+        fields = {
+            host = { type = "string" }
+            max_connections = { type = "int" }
+            timeout_seconds = { type = "float", optional = true }
+
+            tls = {
+                type = "map"
+                optional = true
+                fields = {
+                    cert = { type = "bytes" }
+                    enabled = { type = "bool" }
+                }
+            }
+        }
+    }
+
+    logging = {
+        type = "map"
+        optional = true
+        fields = {
+            level = { type = "string", enum = ["debug", "info", "warn", "error"] }
+            outputs = { type = "array", items = { type = "string" } }
+        }
+    }
+}
