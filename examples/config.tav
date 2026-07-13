@@ -1,18 +1,22 @@
-# A typical config-shaped document: root assignments, then nested tables.
+# A typical config-shaped document: root assignments, then nested maps.
+# Nesting is always `key = { ... }` — there's no separate table syntax.
 
 name = "demo-service"
 port = 8080
 debug = false
 
-[server]
-host = "0.0.0.0"
-max_connections = 1024
-timeout_seconds = 30.5
+server = {
+    host = "0.0.0.0"
+    max_connections = 1024
+    timeout_seconds = 30.5
 
-[server.tls]
-cert = b"3082010a0282010100c1"
-enabled = true
+    tls = {
+        cert = b"3082010a0282010100c1"
+        enabled = true
+    }
+}
 
-[logging]
-level = "info"
-outputs = ["stdout", "file"]
+logging = {
+    level = "info"
+    outputs = ["stdout", "file"]
+}

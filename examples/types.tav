@@ -39,16 +39,20 @@ local_dt = 2026-07-12T10:30:00
 just_date = 2026-07-12
 just_time = 10:30:00
 
-# array: homogeneous and mixed, trailing commas allowed
+# array: homogeneous and mixed. Entries can be comma-separated on one line,
+# newline-separated with no commas at all, or a trailing-comma block —
+# all three are the same grammar.
 numbers = [1, 2, 3]
 mixed = [1, "two", 3.0, true, null]
 nested_array = [
-    [1, 2],
-    [3, 4],
+    [1, 2]
+    [3, 4]
 ]
 
-# inline map
+# inline map — this is the only nesting construct in the language, whether
+# it's a one-liner like this or a multi-line block like the ones above.
 point = { x = 1, y = 2 }
 
-[table]
-this_is_a_table_too = true
+also_a_map = {
+    this_is_a_map_too = true
+}

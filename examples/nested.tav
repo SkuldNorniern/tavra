@@ -1,9 +1,7 @@
-# Nested tables plus an array of inline maps — the two ways Tavra expresses
-# structure. A header's assignments run until the next header, so this
-# top-level `servers` array has to come before `[cluster]` opens — placed
-# after it, it would belong to whatever table is open at that point instead
-# of the root. Inline maps are needed inside arrays either way, since
-# headers can't address an array element.
+# Nested maps plus an array of inline maps — the only two ways structure
+# appears in Tavra. `key = { ... }` nests the same way whether it's a
+# top-level value or a field of another map; inline maps are needed inside
+# arrays either way, since there's no per-element table syntax.
 
 servers = [
     { name = "web-1", role = "frontend", port = 8080, healthy = true },
@@ -11,15 +9,18 @@ servers = [
     { name = "db-1", role = "database", port = 5432, healthy = false },
 ]
 
-[cluster]
-name = "prod-east"
-region = "us-east-1"
+cluster = {
+    name = "prod-east"
+    region = "us-east-1"
 
-[cluster.network]
-vpc_id = "vpc-0123456789abcdef0"
-subnets = ["subnet-aaa", "subnet-bbb", "subnet-ccc"]
+    network = {
+        vpc_id = "vpc-0123456789abcdef0"
+        subnets = ["subnet-aaa", "subnet-bbb", "subnet-ccc"]
+    }
 
-[cluster.limits]
-max_nodes = 50
-cpu_request = 0.5
-memory_request_mb = 512
+    limits = {
+        max_nodes = 50
+        cpu_request = 0.5
+        memory_request_mb = 512
+    }
+}
