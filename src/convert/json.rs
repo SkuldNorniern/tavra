@@ -1,14 +1,10 @@
 use crate::convert::error::ConvertError;
 use crate::value::{Int, Map, Value};
 
-/// Imports a JSON document as a Tavra document root. Import-only — there is
-/// no export back to JSON.
+/// Imports JSON as a Tavra document root. Import-only, no export.
 ///
-/// One known divergence from Tavra's own strictness: JSON objects with
-/// duplicate keys are resolved last-wins by `serde_json` during its own
-/// parse, before this function ever sees the result — unlike `.tav`'s own
-/// parser, which rejects duplicate keys outright, there's no way to
-/// intercept that here without replacing the JSON parser entirely.
+/// Duplicate object keys resolve last-wins (`serde_json`'s own behavior,
+/// happens before we see the result).
 pub fn from_json(source: &str) -> Result<Map, ConvertError> {
     let value: serde_json::Value = serde_json::from_str(source).map_err(|e| ConvertError::new(e.to_string()))?;
     match json_to_value(value) {
@@ -34,9 +30,6 @@ fn json_number_to_value(n: &serde_json::Number) -> Value {
     } else if let Some(u) = n.as_u64() {
         Value::Int(Int::from_u64(u))
     } else {
-        // A JSON number that fits neither i64 nor u64 must be a float (or
-        // an integer wider than our i64 ∪ u64 range); either way, as_f64
-        // is the correct fallback and always succeeds for a valid Number.
         Value::from(n.as_f64().unwrap_or(f64::NAN))
     }
 }

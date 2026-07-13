@@ -37,8 +37,7 @@ fn toml_to_value(v: toml::Value) -> Result<Value, ConvertError> {
 
 fn convert_datetime(dt: TomlDatetime) -> Result<Datetime, ConvertError> {
     let date = dt.date.map(|d| Date::new(d.year, d.month, d.day)).transpose().map_err(datetime_err)?;
-    // `second`/`nanosecond` are optional as of the TOML 1.1.0 draft spec
-    // (e.g. a bare `07:32` with no seconds) — default both to 0.
+    // second/nanosecond are optional in TOML 1.1.0 (e.g. bare "07:32").
     let time = dt
         .time
         .map(|t| Time::new(t.hour, t.minute, t.second.unwrap_or(0), t.nanosecond.unwrap_or(0)))

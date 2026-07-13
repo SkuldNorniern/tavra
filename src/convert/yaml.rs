@@ -3,21 +3,12 @@ use saphyr::{LoadableYamlNode, ScalarOwned, YamlOwned};
 use crate::convert::error::ConvertError;
 use crate::value::{Int, Map, Value};
 
-/// Imports a YAML document as a Tavra document root. Import-only — there is
-/// no export back to YAML.
+/// Imports YAML as a Tavra document root. Import-only, no export.
 ///
-/// Scalars map to exactly Tavra's null/bool/int/float/string — YAML's
-/// implicit `!!timestamp` typing isn't specially recognized, so a bare
-/// date/time in YAML source comes through as a string, not a `Datetime`.
-/// Only the first YAML document in the source is used (YAML allows several
-/// `---`-separated documents per file; multiple documents is treated as
-/// "use the first," matching the common case).
-///
-/// Duplicate mapping keys are resolved last-wins by `saphyr`'s loader
-/// (a plain overwrite-on-insert, same as `serde_json`) before this function
-/// ever sees the result — the explicit duplicate check below only catches
-/// cases that somehow survive to here, and won't fire for a plain literal
-/// duplicate key in the source.
+/// No `!!timestamp` auto-detection — bare dates come through as strings.
+/// Only the first `---`-separated document is used. Duplicate mapping keys
+/// resolve last-wins (`saphyr`'s own behavior, happens before we see the
+/// result — the duplicate check below won't fire for a plain source dupe).
 pub fn from_yaml(source: &str) -> Result<Map, ConvertError> {
     let docs = YamlOwned::load_from_str(source).map_err(|e| ConvertError::new(e.to_string()))?;
     let Some(root) = docs.into_iter().next() else {
@@ -53,8 +44,6 @@ fn yaml_to_value(y: YamlOwned) -> Result<Value, ConvertError> {
             }
             Value::Map(out)
         }
-        // A tag doesn't change the resolved value in Tavra's simpler type
-        // system — unwrap and convert what it tags.
         YamlOwned::Tagged(_, inner) => yaml_to_value(*inner)?,
         YamlOwned::Alias(_) => return Err(ConvertError::new("YAML aliases/anchors are not supported")),
         YamlOwned::Representation(..) | YamlOwned::BadValue => {
@@ -113,9 +102,6 @@ mod tests {
 
     #[test]
     fn duplicate_keys_resolve_last_wins() {
-        // saphyr's loader overwrites on insert, like serde_json — this
-        // documents the observed behavior rather than asserting we can
-        // catch something already resolved upstream.
         let doc = from_yaml("a: 1\na: 2\n").unwrap();
         assert_eq!(doc["a"], Value::from(2i64));
     }

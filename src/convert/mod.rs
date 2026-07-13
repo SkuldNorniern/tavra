@@ -1,7 +1,5 @@
 //! Import adapters from JSON, TOML, and YAML into the Tavra value model.
-//! Import-only — there is no export back to these formats (see
-//! `docs/status.md` for why: Tavra has bytes/datetime/nan/inf, none of
-//! which map cleanly back to plain JSON).
+//! Import-only, no export back to these formats.
 
 mod error;
 mod json;
