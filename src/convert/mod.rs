@@ -3,10 +3,10 @@
 
 mod error;
 mod json;
-mod toml_fmt;
+mod toml;
 mod yaml;
 
 pub use error::ConvertError;
 pub use json::from_json;
-pub use toml_fmt::from_toml;
+pub use toml::from_toml;
 pub use yaml::from_yaml;
