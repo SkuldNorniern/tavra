@@ -3,6 +3,7 @@
 
 pub mod binary;
 pub mod envelope;
+pub mod schema;
 pub mod text;
 pub mod value;
 
