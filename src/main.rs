@@ -2,7 +2,7 @@ use std::{env, fs};
 use std::process::ExitCode;
 
 use tavra::envelope::{self, OpenMode, SealMode, SealOptions};
-use tavra::text;
+use tavra::{schema, text};
 use tavra::Value;
 
 fn main() -> ExitCode {
@@ -18,7 +18,7 @@ fn main() -> ExitCode {
             eprintln!(
                 "usage:\n  \
                  tav fmt [--write] <path>\n  \
-                 tav check <path>\n  \
+                 tav check [--schema <schema.tav>] <path>\n  \
                  tav genkey <keyfile>\n  \
                  tav gensignkey <secretfile> <publicfile>\n  \
                  tav pack <in.tav> <out.tave> [--key <keyfile> | --password <passwordfile>] [--compress] [--sign <secretfile>]\n  \
@@ -67,8 +67,9 @@ fn cmd_fmt(args: &[String]) -> ExitCode {
 }
 
 fn cmd_check(args: &[String]) -> ExitCode {
-    let Some(path) = args.first() else {
-        eprintln!("usage: tav check <path>");
+    let positional = positionals(args, &["--schema"], &[]);
+    let Some(path) = positional.first() else {
+        eprintln!("usage: tav check [--schema <schema.tav>] <path>");
         return ExitCode::FAILURE;
     };
 
@@ -80,10 +81,45 @@ fn cmd_check(args: &[String]) -> ExitCode {
         }
     };
 
-    match text::parse(&source) {
-        Ok(_) => ExitCode::SUCCESS,
+    let root = match text::parse(&source) {
+        Ok(Value::Map(root)) => root,
+        Ok(_) => unreachable!("document root is always a map"),
         Err(e) => {
             eprintln!("{path}:{e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let Some(schema_path) = find_flag_value(args, "--schema") else {
+        return ExitCode::SUCCESS;
+    };
+
+    let schema_source = match fs::read_to_string(schema_path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{schema_path}: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let schema_root = match text::parse(&schema_source) {
+        Ok(Value::Map(root)) => root,
+        Ok(_) => unreachable!("document root is always a map"),
+        Err(e) => {
+            eprintln!("{schema_path}:{e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    match schema::validate(&schema_root, &root) {
+        Ok(violations) if violations.is_empty() => ExitCode::SUCCESS,
+        Ok(violations) => {
+            for v in violations {
+                eprintln!("{path}: {v}");
+            }
+            ExitCode::FAILURE
+        }
+        Err(e) => {
+            eprintln!("{schema_path}: {e}");
             ExitCode::FAILURE
         }
     }
