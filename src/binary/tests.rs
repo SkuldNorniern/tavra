@@ -38,7 +38,7 @@ fn full_int_range_roundtrips() {
 
 #[test]
 fn nested_structures_roundtrip() {
-    roundtrip("[server]\nhost = \"0.0.0.0\"\n\n[server.tls]\ncert = b64\"aGVsbG8gd29ybGQ=\"\n");
+    roundtrip("server = {\n    host = \"0.0.0.0\"\n    tls = { cert = b64\"aGVsbG8gd29ybGQ=\" }\n}\n");
     roundtrip("servers = [\n    { name = \"a\", port = 1 },\n    { name = \"b\", port = 2 },\n]\n");
 }
 
