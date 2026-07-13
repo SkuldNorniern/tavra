@@ -1,0 +1,54 @@
+# Every Tavra value type in one document.
+
+# null and bool
+nothing = null
+enabled = true
+disabled = false
+
+# int: decimal, hex, octal, binary — all one logical type
+dec = 42
+neg = -17
+big = 18446744073709551615
+hex = 0xDEAD_BEEF
+oct = 0o755
+bin = 0b1010
+
+# float: decimal, exponent, special values
+pi_ish = 3.14159
+small = 1e-3
+huge = -2.5e10
+infinite = inf
+neg_infinite = -inf
+not_a_number = nan
+
+# string: basic (with escapes), raw, and multi-line
+greeting = "hello\nworld"
+path = 'C:\Users\example\no\escapes'
+poem = """
+Roses are red,
+Violets are blue.
+"""
+
+# bytes: hex form (short) and base64 form (long)
+short_bytes = b"deadbeef"
+long_bytes = b64"VGF2cmEgaXMgYSBkYXRhIGZvcm1hdCB3aXRoIGEgc2VjdXJlIGJpbmFyeSBjb3Jl"
+
+# datetime: all four kinds
+offset_dt = 2026-07-12T10:30:00+09:00
+local_dt = 2026-07-12T10:30:00
+just_date = 2026-07-12
+just_time = 10:30:00
+
+# array: homogeneous and mixed, trailing commas allowed
+numbers = [1, 2, 3]
+mixed = [1, "two", 3.0, true, null]
+nested_array = [
+    [1, 2],
+    [3, 4],
+]
+
+# inline map
+point = { x = 1, y = 2 }
+
+[table]
+this_is_a_table_too = true
