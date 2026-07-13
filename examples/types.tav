@@ -8,7 +8,7 @@ disabled = false
 # int: decimal, hex, octal, binary — all one logical type
 dec = 42
 neg = -17
-big = 18446744073709551615
+big = 18446744073709551615  # u64::MAX, still just "int"
 hex = 0xDEAD_BEEF
 oct = 0o755
 bin = 0b1010
@@ -29,7 +29,8 @@ Roses are red,
 Violets are blue.
 """
 
-# bytes: hex form (short) and base64 form (long)
+# bytes: hex form (short) and base64 form (long) - a real type, not a
+# base64 string you have to remember to decode on the other end
 short_bytes = b"deadbeef"
 long_bytes = b64"VGF2cmEgaXMgYSBkYXRhIGZvcm1hdCB3aXRoIGEgc2VjdXJlIGJpbmFyeSBjb3Jl"
 

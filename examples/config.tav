@@ -8,14 +8,15 @@ debug = false
 server = {
     host = "0.0.0.0"
     max_connections = 1024
-    timeout_seconds = 30.5
+    timeout_seconds = 30.5  # fractional seconds, still just a float
 
     tls = {
-        cert = b"3082010a0282010100c1"
+        cert = b"3082010a0282010100c1"  # raw bytes, no base64-string workaround
         enabled = true
     }
 }
 
+# a comment on its own line, right where it's useful - JSON can't do this at all
 logging = {
     level = "info"
     outputs = ["stdout", "file"]

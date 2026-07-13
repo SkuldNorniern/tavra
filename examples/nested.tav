@@ -3,6 +3,7 @@
 # top-level value or a field of another map; inline maps are needed inside
 # arrays either way, since there's no per-element table syntax.
 
+# db-1 is down for maintenance as of this writing
 servers = [
     { name = "web-1", role = "frontend", port = 8080, healthy = true },
     { name = "web-2", role = "frontend", port = 8080, healthy = true },
@@ -15,12 +16,12 @@ cluster = {
 
     network = {
         vpc_id = "vpc-0123456789abcdef0"
-        subnets = ["subnet-aaa", "subnet-bbb", "subnet-ccc"]
+        subnets = ["subnet-aaa", "subnet-bbb", "subnet-ccc"]  # one per AZ
     }
 
     limits = {
         max_nodes = 50
-        cpu_request = 0.5
+        cpu_request = 0.5      # cores
         memory_request_mb = 512
     }
 }
