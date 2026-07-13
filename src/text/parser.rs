@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::value::{Map, Value};
 
 use super::cursor::Cursor;
@@ -9,29 +7,18 @@ use super::string::{decode_base64_bytes, decode_hex_bytes, scan_basic_string, sc
 
 pub fn parse_document(cur: &mut Cursor) -> Result<Value, Error> {
     let mut root = Map::new();
-    let mut current_path: Vec<String> = Vec::new();
-    let mut explicit_tables: HashSet<Vec<String>> = HashSet::new();
 
     skip_ws_and_comments(cur);
     while !cur.eof() {
-        if cur.peek() == Some('[') {
-            current_path = parse_header(cur)?;
-            navigate(cur, &mut root, &current_path)?;
-            if !explicit_tables.insert(current_path.clone()) {
-                return Err(cur.error(format!("table '{}' redefined", current_path.join("."))));
-            }
-        } else {
-            let key = parse_key(cur)?;
-            skip_ws_line(cur);
-            if cur.bump() != Some('=') {
-                return Err(cur.error("expected '='"));
-            }
-            skip_ws_line(cur);
-            let value = parse_value(cur)?;
-            let target = navigate(cur, &mut root, &current_path)?;
-            if target.insert(key.clone(), value).is_some() {
-                return Err(cur.error(format!("duplicate key '{key}'")));
-            }
+        let key = parse_key(cur)?;
+        skip_ws_line(cur);
+        if cur.bump() != Some('=') {
+            return Err(cur.error("expected '='"));
+        }
+        skip_ws_line(cur);
+        let value = parse_value(cur)?;
+        if root.insert(key.clone(), value).is_some() {
+            return Err(cur.error(format!("duplicate key '{key}'")));
         }
         skip_ws_line(cur);
         expect_line_end(cur)?;
@@ -39,39 +26,6 @@ pub fn parse_document(cur: &mut Cursor) -> Result<Value, Error> {
     }
 
     Ok(Value::Map(root))
-}
-
-fn navigate<'a>(cur: &Cursor, root: &'a mut Map, path: &[String]) -> Result<&'a mut Map, Error> {
-    let mut current = root;
-    for key in path {
-        let entry = current.entry(key.clone()).or_insert_with(|| Value::Map(Map::new()));
-        match entry {
-            Value::Map(m) => current = m,
-            _ => return Err(cur.error(format!("key '{key}' is not a table"))),
-        }
-    }
-    Ok(current)
-}
-
-fn parse_header(cur: &mut Cursor) -> Result<Vec<String>, Error> {
-    cur.bump(); // '['
-    skip_ws_line(cur);
-    let mut path = vec![parse_key(cur)?];
-    loop {
-        skip_ws_line(cur);
-        if cur.peek() == Some('.') {
-            cur.bump();
-            skip_ws_line(cur);
-            path.push(parse_key(cur)?);
-        } else {
-            break;
-        }
-    }
-    skip_ws_line(cur);
-    if cur.bump() != Some(']') {
-        return Err(cur.error("expected ']'"));
-    }
-    Ok(path)
 }
 
 fn parse_key(cur: &mut Cursor) -> Result<String, Error> {
@@ -171,28 +125,21 @@ fn parse_keyword(cur: &mut Cursor) -> Result<Value, Error> {
 fn parse_array(cur: &mut Cursor) -> Result<Value, Error> {
     cur.bump(); // '['
     let mut items = Vec::new();
-    skip_ws_and_comments(cur);
+    skip_separators(cur);
     if cur.peek() == Some(']') {
         cur.bump();
         return Ok(Value::Array(items));
     }
     loop {
         items.push(parse_value(cur)?);
-        skip_ws_and_comments(cur);
+        let had_sep = skip_separators(cur);
         match cur.peek() {
-            Some(',') => {
-                cur.bump();
-                skip_ws_and_comments(cur);
-                if cur.peek() == Some(']') {
-                    cur.bump();
-                    return Ok(Value::Array(items));
-                }
-            }
             Some(']') => {
                 cur.bump();
                 return Ok(Value::Array(items));
             }
-            _ => return Err(cur.error("expected ',' or ']'")),
+            Some(_) if had_sep => continue,
+            _ => return Err(cur.error("expected ',', a line break, or ']'")),
         }
     }
 }
@@ -200,7 +147,7 @@ fn parse_array(cur: &mut Cursor) -> Result<Value, Error> {
 fn parse_inline_map(cur: &mut Cursor) -> Result<Value, Error> {
     cur.bump(); // '{'
     let mut map = Map::new();
-    skip_ws_and_comments(cur);
+    skip_separators(cur);
     if cur.peek() == Some('}') {
         cur.bump();
         return Ok(Value::Map(map));
@@ -216,21 +163,14 @@ fn parse_inline_map(cur: &mut Cursor) -> Result<Value, Error> {
         if map.insert(key.clone(), value).is_some() {
             return Err(cur.error(format!("duplicate key '{key}'")));
         }
-        skip_ws_and_comments(cur);
+        let had_sep = skip_separators(cur);
         match cur.peek() {
-            Some(',') => {
-                cur.bump();
-                skip_ws_and_comments(cur);
-                if cur.peek() == Some('}') {
-                    cur.bump();
-                    return Ok(Value::Map(map));
-                }
-            }
             Some('}') => {
                 cur.bump();
                 return Ok(Value::Map(map));
             }
-            _ => return Err(cur.error("expected ',' or '}'")),
+            Some(_) if had_sep => continue,
+            _ => return Err(cur.error("expected ',', a line break, or '}'")),
         }
     }
 }
@@ -255,6 +195,32 @@ fn skip_ws_and_comments(cur: &mut Cursor) {
             _ => break,
         }
     }
+}
+
+/// Consumes whitespace, comments, commas, and line breaks inside `[]`/`{}`
+/// (any mixture, in any order), returning whether at least one comma or
+/// line break was seen — spaces/tabs/comments alone don't count as an
+/// entry separator, only accompany one.
+fn skip_separators(cur: &mut Cursor) -> bool {
+    let mut found = false;
+    loop {
+        match cur.peek() {
+            Some(' ') | Some('\t') => {
+                cur.bump();
+            }
+            Some('#') => {
+                while cur.peek().is_some() && cur.peek() != Some('\n') {
+                    cur.bump();
+                }
+            }
+            Some('\n') | Some('\r') | Some(',') => {
+                cur.bump();
+                found = true;
+            }
+            _ => break,
+        }
+    }
+    found
 }
 
 fn expect_line_end(cur: &mut Cursor) -> Result<(), Error> {
@@ -291,11 +257,8 @@ mod tests {
     }
 
     #[test]
-    fn nested_headers() {
-        let doc = parse(
-            "[server]\nhost = \"0.0.0.0\"\n\n[server.tls]\ncert = b\"deadbeef\"\n",
-        )
-        .unwrap();
+    fn nested_inline_maps() {
+        let doc = parse("server = {\n    host = \"0.0.0.0\"\n\n    tls = {\n        cert = b\"deadbeef\"\n    }\n}\n").unwrap();
         assert_eq!(get(&doc, &["server", "host"]), &Value::from("0.0.0.0"));
         assert_eq!(get(&doc, &["server", "tls", "cert"]), &Value::Bytes(vec![0xde, 0xad, 0xbe, 0xef]));
     }
@@ -309,16 +272,6 @@ mod tests {
     #[test]
     fn duplicate_key_rejected() {
         assert!(parse("a = 1\na = 2\n").is_err());
-    }
-
-    #[test]
-    fn table_redefinition_rejected() {
-        assert!(parse("[server]\na = 1\n[server]\nb = 2\n").is_err());
-    }
-
-    #[test]
-    fn header_collides_with_scalar() {
-        assert!(parse("a = 1\n[a]\nb = 2\n").is_err());
     }
 
     #[test]
@@ -344,6 +297,26 @@ mod tests {
     }
 
     #[test]
+    fn newline_separated_array_no_commas() {
+        let doc = parse("a = [\n    1\n    2\n    3\n]\n").unwrap();
+        let arr = get(&doc, &["a"]).as_array().unwrap();
+        assert_eq!(arr, &[Value::from(1i64), Value::from(2i64), Value::from(3i64)]);
+    }
+
+    #[test]
+    fn newline_separated_inline_map_no_commas() {
+        let doc = parse("a = {\n    x = 1\n    y = 2\n}\n").unwrap();
+        assert_eq!(get(&doc, &["a", "x"]), &Value::from(1i64));
+        assert_eq!(get(&doc, &["a", "y"]), &Value::from(2i64));
+    }
+
+    #[test]
+    fn missing_separator_rejected() {
+        assert!(parse("a = [1 2]\n").is_err());
+        assert!(parse("a = { x = 1 y = 2 }\n").is_err());
+    }
+
+    #[test]
     fn dotted_key_in_assignment_rejected() {
         assert!(parse("a.b = 1\n").is_err());
     }
@@ -352,5 +325,10 @@ mod tests {
     fn quoted_key_with_spaces() {
         let doc = parse("\"key with spaces\" = 1\n").unwrap();
         assert_eq!(get(&doc, &["key with spaces"]), &Value::from(1i64));
+    }
+
+    #[test]
+    fn header_syntax_rejected() {
+        assert!(parse("[server]\nhost = \"x\"\n").is_err());
     }
 }
