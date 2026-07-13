@@ -14,50 +14,18 @@ use super::parser::is_bare_key_char;
 use super::string::{encode_base64, encode_hex};
 
 /// Renders a document. `root` is the value model's root map (every document
-/// root is a map).
+/// root is a map). Nesting — root-level, inside another map, or inside an
+/// array — always renders as `key = { ... }`; there is no separate table
+/// syntax to choose between.
 pub fn format(root: &Map) -> String {
     let mut out = String::new();
-    write_table_body(&mut out, root);
-    write_nested_tables(&mut out, root, &mut Vec::new());
-    out
-}
-
-fn write_table_body(out: &mut String, map: &Map) {
-    for (k, v) in map.iter() {
-        if matches!(v, Value::Map(_)) {
-            continue;
-        }
-        write_key(out, k);
+    for (k, v) in root.iter() {
+        write_key(&mut out, k);
         out.push_str(" = ");
-        write_value(out, v, 0);
+        write_value(&mut out, v, 0);
         out.push('\n');
     }
-}
-
-fn write_nested_tables(out: &mut String, map: &Map, path: &mut Vec<String>) {
-    for (k, v) in map.iter() {
-        if let Value::Map(child) = v {
-            path.push(k.clone());
-            if !out.is_empty() {
-                out.push('\n');
-            }
-            write_header(out, path);
-            write_table_body(out, child);
-            write_nested_tables(out, child, path);
-            path.pop();
-        }
-    }
-}
-
-fn write_header(out: &mut String, path: &[String]) {
-    out.push('[');
-    for (i, segment) in path.iter().enumerate() {
-        if i > 0 {
-            out.push('.');
-        }
-        write_key(out, segment);
-    }
-    out.push_str("]\n");
+    out
 }
 
 fn write_key(out: &mut String, key: &str) {
@@ -99,7 +67,7 @@ fn write_array(out: &mut String, items: &[Value], indent: usize) {
     for item in items {
         write_indent(out, indent + 1);
         write_value(out, item, indent + 1);
-        out.push_str(",\n");
+        out.push('\n');
     }
     write_indent(out, indent);
     out.push(']');
@@ -116,7 +84,7 @@ fn write_inline_map(out: &mut String, map: &Map, indent: usize) {
         write_key(out, k);
         out.push_str(" = ");
         write_value(out, v, indent + 1);
-        out.push_str(",\n");
+        out.push('\n');
     }
     write_indent(out, indent);
     out.push('}');
@@ -263,8 +231,8 @@ mod tests {
     }
 
     #[test]
-    fn nested_tables_round_trip() {
-        roundtrip("[server]\nhost = \"0.0.0.0\"\n\n[server.tls]\ncert = b\"deadbeef\"\n");
+    fn nested_inline_maps_round_trip() {
+        roundtrip("server = {\n    host = \"0.0.0.0\"\n    tls = {\n        cert = b\"deadbeef\"\n    }\n}\n");
     }
 
     #[test]
@@ -300,9 +268,17 @@ mod tests {
 
     #[test]
     fn format_is_idempotent() {
-        let doc = parse("b = 1\na = [1, 2, { x = 1 }]\n[t]\nk = \"v\"\n").unwrap();
+        let doc = parse("b = 1\na = [1, 2, { x = 1 }]\nt = { k = \"v\" }\n").unwrap();
         let once = format(doc.as_map().unwrap());
         let twice = format(parse(&once).unwrap().as_map().unwrap());
         assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn nested_map_renders_as_brace_block_not_header() {
+        let doc = parse("server = { host = \"0.0.0.0\" }\n").unwrap();
+        let out = format(doc.as_map().unwrap());
+        assert!(!out.contains('['), "expected no header syntax in output:\n{out}");
+        assert!(out.contains("server = {"), "{out}");
     }
 }
