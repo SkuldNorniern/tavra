@@ -1,4 +1,4 @@
-use super::error::Error;
+use crate::envelope::error::Error;
 
 pub const MAGIC: &[u8; 4] = b"TAVE";
 pub const VERSION: u8 = 0x01;

@@ -1,9 +1,9 @@
 use crate::value::{Map, Value};
 
-use super::cursor::Cursor;
-use super::error::Error;
-use super::number::scan_number_or_datetime;
-use super::string::{decode_base64_bytes, decode_hex_bytes, scan_basic_string, scan_raw_string};
+use crate::text::cursor::Cursor;
+use crate::text::error::Error;
+use crate::text::number::scan_number_or_datetime;
+use crate::text::string::{decode_base64_bytes, decode_hex_bytes, scan_basic_string, scan_raw_string};
 
 pub fn parse_document(cur: &mut Cursor) -> Result<Value, Error> {
     let mut root = Map::new();

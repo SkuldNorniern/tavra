@@ -1,5 +1,5 @@
-use super::cursor::Cursor;
-use super::error::Error;
+use crate::text::cursor::Cursor;
+use crate::text::error::Error;
 
 fn is_disallowed_control(c: char) -> bool {
     // Tab and line breaks are always allowed; every other control char

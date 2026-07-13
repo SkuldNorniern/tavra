@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::value::{Map, Value};
 
-use super::error::SchemaError;
+use crate::schema::error::SchemaError;
 
 const VALID_TYPES: &[&str] = &["null", "bool", "int", "float", "string", "bytes", "datetime", "array", "map"];
 const KNOWN_KEYS: &[&str] = &["type", "optional", "enum", "fields", "closed", "items"];

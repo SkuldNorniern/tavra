@@ -1,6 +1,6 @@
 use crate::value::Map;
 
-use super::encode::encode_value_bytes;
+use crate::binary::encode::encode_value_bytes;
 
 /// A document's canonical identity: `BLAKE3(value_bytes)`, where
 /// `value_bytes` excludes the magic/version prefix. Envelope signatures

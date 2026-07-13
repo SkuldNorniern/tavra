@@ -1,6 +1,6 @@
 use zstd::stream::{decode_all, encode_all};
 
-use super::error::Error;
+use crate::envelope::error::Error;
 
 pub fn compress(data: &[u8]) -> Result<Vec<u8>, Error> {
     encode_all(data, 0).map_err(|e| Error::new(format!("zstd compression failed: {e}")))

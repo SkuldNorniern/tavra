@@ -1,9 +1,9 @@
 use argon2::{Algorithm, Argon2, Params, Version};
 
-use super::aead::KEY_LEN;
-use super::error::Error;
-use super::header::KdfParams;
-use super::random::random_bytes;
+use crate::envelope::aead::KEY_LEN;
+use crate::envelope::error::Error;
+use crate::envelope::header::KdfParams;
+use crate::envelope::random::random_bytes;
 
 pub const SALT_LEN: usize = 16;
 

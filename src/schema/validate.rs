@@ -1,7 +1,7 @@
 use crate::value::{Map, Value};
 
-use super::error::Violation;
-use super::spec::FieldSpec;
+use crate::schema::error::Violation;
+use crate::schema::spec::FieldSpec;
 
 enum PathSegment {
     Key(String),

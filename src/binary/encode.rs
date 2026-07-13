@@ -1,6 +1,6 @@
 use crate::value::{Datetime, Map, Time, Value};
 
-use super::varint::encode_varint;
+use crate::binary::varint::encode_varint;
 
 pub const MAGIC: &[u8; 4] = b"TAVB";
 pub const VERSION: u8 = 0x01;

@@ -1,8 +1,8 @@
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
 
-use super::error::Error;
-use super::random::random_bytes;
+use crate::envelope::error::Error;
+use crate::envelope::random::random_bytes;
 
 pub const KEY_LEN: usize = 32;
 pub const NONCE_LEN: usize = 24;

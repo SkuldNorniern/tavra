@@ -1,8 +1,8 @@
 use crate::value::{Date, Datetime, Float, Int, LocalDateTime, Map, OffsetDateTime, Time, Value};
 
-use super::encode::{MAGIC, VERSION};
-use super::error::Error;
-use super::varint::decode_varint;
+use crate::binary::encode::{MAGIC, VERSION};
+use crate::binary::error::Error;
+use crate::binary::varint::decode_varint;
 
 pub fn decode_document(bytes: &[u8]) -> Result<Map, Error> {
     let mut pos = 0;

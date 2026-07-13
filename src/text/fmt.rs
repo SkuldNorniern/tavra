@@ -10,8 +10,8 @@ use std::fmt::Write as _;
 use crate::value::{Datetime, Time};
 use crate::value::{Map, Value};
 
-use super::parser::is_bare_key_char;
-use super::string::{encode_base64, encode_hex};
+use crate::text::parser::is_bare_key_char;
+use crate::text::string::{encode_base64, encode_hex};
 
 /// Renders a document. `root` is the value model's root map (every document
 /// root is a map). Nesting — root-level, inside another map, or inside an

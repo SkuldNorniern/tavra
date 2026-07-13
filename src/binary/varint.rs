@@ -1,4 +1,4 @@
-use super::error::Error;
+use crate::binary::error::Error;
 
 /// Appends the canonical (minimal-length) unsigned LEB128 encoding of `v`.
 pub fn encode_varint(out: &mut Vec<u8>, mut v: u64) {

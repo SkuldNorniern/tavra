@@ -1,4 +1,4 @@
-use super::error::Error;
+use crate::text::error::Error;
 
 /// Char-indexed cursor over source text, tracking 1-based line/column for
 /// error reporting.

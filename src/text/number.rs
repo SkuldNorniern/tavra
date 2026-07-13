@@ -1,7 +1,7 @@
 use crate::value::{Date, Datetime, Int, LocalDateTime, OffsetDateTime, Time, Value};
 
-use super::cursor::Cursor;
-use super::error::Error;
+use crate::text::cursor::Cursor;
+use crate::text::error::Error;
 
 /// Scans an int, float, date, time, or datetime literal. Cursor must be
 /// positioned at the leading digit or `-`.
