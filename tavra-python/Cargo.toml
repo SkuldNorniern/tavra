@@ -1,0 +1,18 @@
+[package]
+name = "tavra-python"
+version = "0.1.0"
+edition = "2024"
+description = "Python bindings for Tavra"
+license = "Apache-2.0"
+repository = "https://github.com/SkuldNorniern/tavra"
+
+[lib]
+name = "tavra"
+crate-type = ["cdylib"]
+
+[dependencies]
+tavra = { path = "..", version = "0.1.0" }
+pyo3 = { version = "0.27", features = ["extension-module"] }
+
+[lints]
+workspace = true
