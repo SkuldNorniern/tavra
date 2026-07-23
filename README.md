@@ -67,6 +67,21 @@ which ones are required, enums, whether a map is closed to unlisted keys.
 There's also one-way import from JSON, TOML, and YAML for migrating
 existing files.
 
+## Bindings
+
+The core is Rust, but you don't have to be. `tavra-c`, `tavra-python`, and
+`tavra-csharp` are sibling crates/projects in this same repo, each wrapping
+the core round-trip (parse/format, binary encode/decode, envelope
+seal/open):
+
+- **tavra-c**: a plain C API (`tavra-c/include/tavra.h`), cdylib +
+  staticlib. Everything else wraps this or the Rust crate directly.
+- **tavra-python**: full parity with the Rust API via PyO3 — the value
+  model maps onto native `dict`/`list`/`str`/`bytes`/`datetime.*`. Built
+  with `maturin`.
+- **tavra-csharp**: a `netstandard2.1` class library over `tavra-c`'s C
+  ABI via P/Invoke — the round-trip surface only, aimed at Unity.
+
 ## CLI
 
 ```
@@ -85,18 +100,25 @@ Argv ends up in shell history and `ps` output; secrets don't belong there.
 ## Building
 
 ```
-cargo build
-cargo test
+cargo build --workspace
+cargo test --workspace
 ```
 
-No system dependencies beyond a C compiler (for `blake3` and `zstd`).
-Everything else is pure Rust.
+builds and tests the core crate plus `tavra-c` and `tavra-python`. No
+system dependencies beyond a C compiler (for `blake3` and `zstd`).
+
+`tavra-csharp` is a separate `.slnx` solution (dotnet SDK, not Cargo):
+
+```
+cargo build -p tavra-c   # build the native lib it P/Invokes into first
+dotnet test tavra-csharp/Tavra.Tests/Tavra.Tests.csproj
+```
 
 ## Status
 
 Text parsing and formatting, the binary codec, the envelope pipeline,
-schema validation, and JSON/TOML/YAML import are all working and tested
-end to end.
-And few things are still missing, there's no export back out to
-JSON/TOML/YAML, no LSP, and the current adversarial test coverage is
-hand-written with AI assisted and not fuzzed yet
+schema validation, JSON/TOML/YAML import, and the C/Python/C# bindings are
+all working and tested end to end.
+A few things are still missing: no export back out to JSON/TOML/YAML, no
+LSP, and the current adversarial test coverage is hand-written rather than
+fuzzed.
