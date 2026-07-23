@@ -1,2 +1,6 @@
 bin/
 obj/
+
+# Native libs staged here before `dotnet pack` (see Tavra.csproj) — built
+# by CI or copied by hand, never committed.
+Tavra/native/

@@ -14,6 +14,22 @@
     <Description>C# bindings for Tavra — a readable data/config format with a canonical binary form and an encrypted, signed envelope. P/Invoke wrapper over tavra-c's stable C API (core round-trip only: parse/format, binary encode/decode, envelope seal/open).</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/SkuldNorniern/tavra</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" Condition="Exists('README.md')" />
+
+    <!-- Native tavra-c libraries, staged per-RID before packing (see
+         tagged-release.yml's pack-nuget job, which builds tavra-c on all
+         three platforms and stages them here before `dotnet pack`).
+         Condition="Exists(...)" so a local `dotnet pack` still produces a
+         (partial, e.g. Linux-only) package for testing without every
+         platform staged — see tavra-csharp/README.md for how to stage
+         these by hand. -->
+    <None Include="native/linux-x64/libtavra_c.so" Pack="true" PackagePath="runtimes/linux-x64/native/" Condition="Exists('native/linux-x64/libtavra_c.so')" />
+    <None Include="native/osx-arm64/libtavra_c.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" Condition="Exists('native/osx-arm64/libtavra_c.dylib')" />
+    <None Include="native/win-x64/tavra_c.dll" Pack="true" PackagePath="runtimes/win-x64/native/" Condition="Exists('native/win-x64/tavra_c.dll')" />
+  </ItemGroup>
 
 </Project>
