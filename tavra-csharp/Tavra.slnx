@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Tavra.Tests/Tavra.Tests.csproj" />
+  <Project Path="Tavra/Tavra.csproj" />
+</Solution>

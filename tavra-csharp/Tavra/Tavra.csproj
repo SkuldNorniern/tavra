@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- netstandard2.1: Unity's usual API compatibility level. Keep the
+         interop layer to plain P/Invoke (no reflection-heavy patterns) so
+         it stays IL2CPP-AOT friendly. -->
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>9.0</LangVersion>
+
+    <PackageId>Tavra</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Eira</Authors>
+    <Description>C# bindings for Tavra — a readable data/config format with a canonical binary form and an encrypted, signed envelope. P/Invoke wrapper over tavra-c's stable C API (core round-trip only: parse/format, binary encode/decode, envelope seal/open).</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/SkuldNorniern/tavra</RepositoryUrl>
+  </PropertyGroup>
+
+</Project>
