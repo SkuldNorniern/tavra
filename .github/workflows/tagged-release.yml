@@ -1,4 +1,4 @@
-name: Release
+name: Tagged Release
 
 on:
   push:
@@ -76,9 +76,52 @@ jobs:
             *.zip.sha256
           if-no-files-found: error
 
+  c-archive:
+    name: Build C archive
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-c-tagged-${{ hashFiles('tavra-c/Cargo.lock', 'Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-c-tagged-
+
+      - name: Test C API and run the C smoke test
+        run: |
+          cd tavra-c
+          make test
+
+      - name: Package C archive
+        run: |
+          cargo build --release -p tavra-c
+          ARCHIVE=tavra-c-${{ github.ref_name }}-x86_64-unknown-linux-gnu
+          mkdir -p dist/{lib,include}
+          cp target/release/libtavra_c.a target/release/libtavra_c.so dist/lib/
+          cp tavra-c/include/tavra.h dist/include/
+          cp LICENSE dist/
+          tar -czf "${ARCHIVE}.tar.gz" -C dist .
+          sha256sum "${ARCHIVE}.tar.gz" > "${ARCHIVE}.tar.gz.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tavra-c-x86_64-unknown-linux-gnu
+          path: |
+            *.tar.gz
+            *.tar.gz.sha256
+          if-no-files-found: error
+
   release:
     name: Publish Release
-    needs: build
+    needs: [build, c-archive]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -158,10 +201,11 @@ jobs:
             echo "|----------|------|--------|"
             while read -r hash file; do
               case "$file" in
-                *linux*)   platform="Linux x86_64"   ;;
-                *darwin*)  platform="macOS ARM64"     ;;
-                *windows*) platform="Windows x86_64"  ;;
-                *)         platform="Other"           ;;
+                tavra-c-*) platform="C API (Linux x86_64)"  ;;
+                *linux*)   platform="CLI (Linux x86_64)"    ;;
+                *darwin*)  platform="CLI (macOS ARM64)"     ;;
+                *windows*) platform="CLI (Windows x86_64)"  ;;
+                *)         platform="Other"                 ;;
               esac
               echo "| $platform | \`$file\` | \`${hash:0:16}...\` |"
             done < checksums.sha256
