@@ -119,9 +119,103 @@ jobs:
             *.tar.gz.sha256
           if-no-files-found: error
 
+  c-native-libs:
+    name: Build tavra-c native lib (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            rid: linux-x64
+            lib: libtavra_c.so
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            rid: osx-arm64
+            lib: libtavra_c.dylib
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            rid: win-x64
+            lib: tavra_c.dll
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-nuget-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.target }}-nuget-cargo-
+
+      - name: Build tavra-c
+        run: cargo build --release --target ${{ matrix.target }} -p tavra-c
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tavra-c-native-${{ matrix.rid }}
+          path: target/${{ matrix.target }}/release/${{ matrix.lib }}
+          if-no-files-found: error
+
+  pack-nuget:
+    name: Pack NuGet package
+    needs: c-native-libs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tavra-c-native-*
+          path: native-artifacts
+
+      - name: Stage native libs for packing
+        run: |
+          mkdir -p tavra-csharp/Tavra/native/linux-x64
+          mkdir -p tavra-csharp/Tavra/native/osx-arm64
+          mkdir -p tavra-csharp/Tavra/native/win-x64
+          cp native-artifacts/tavra-c-native-linux-x64/libtavra_c.so tavra-csharp/Tavra/native/linux-x64/
+          cp native-artifacts/tavra-c-native-osx-arm64/libtavra_c.dylib tavra-csharp/Tavra/native/osx-arm64/
+          cp native-artifacts/tavra-c-native-win-x64/tavra_c.dll tavra-csharp/Tavra/native/win-x64/
+
+      - name: Compute package version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: dotnet pack
+        run: dotnet pack tavra-csharp/Tavra/Tavra.csproj -c Release -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Checksum
+        run: |
+          cd tavra-csharp/Tavra/bin/Release
+          for f in *.nupkg; do sha256sum "$f" > "$f.sha256"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tavra-nuget-package
+          path: |
+            tavra-csharp/Tavra/bin/Release/*.nupkg
+            tavra-csharp/Tavra/bin/Release/*.nupkg.sha256
+          if-no-files-found: error
+
   release:
     name: Publish Release
-    needs: [build, c-archive]
+    needs: [build, c-archive, pack-nuget]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -184,6 +278,7 @@ jobs:
           files: |
             artifacts/*.tar.gz
             artifacts/*.zip
+            artifacts/*.nupkg
             checksums.sha256
 
       - name: Update release notes with changelog and downloads table
@@ -201,6 +296,7 @@ jobs:
             echo "|----------|------|--------|"
             while read -r hash file; do
               case "$file" in
+                *.nupkg)   platform="NuGet (multi-platform)" ;;
                 tavra-c-*) platform="C API (Linux x86_64)"  ;;
                 *linux*)   platform="CLI (Linux x86_64)"    ;;
                 *darwin*)  platform="CLI (macOS ARM64)"     ;;
