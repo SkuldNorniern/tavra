@@ -166,6 +166,37 @@ jobs:
           path: target/${{ matrix.target }}/release/${{ matrix.lib }}
           if-no-files-found: error
 
+      # Per-platform C archive (dynamic lib + header + LICENSE). Only the
+      # Linux one goes through `make test` (the c-archive job, above) —
+      # these two (macOS/Windows) are built but not smoke-tested, since
+      # the Makefile's linker flags (-lpthread -ldl) are Linux-specific
+      # and haven't been verified to work as-is on those platforms.
+      - name: Package C archive
+        shell: bash
+        run: |
+          mkdir -p dist/include
+          cp "target/${{ matrix.target }}/release/${{ matrix.lib }}" dist/
+          cp tavra-c/include/tavra.h dist/include/
+          cp LICENSE dist/
+          ARCHIVE=tavra-c-${{ github.ref_name }}-${{ matrix.target }}
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cd dist && 7z a "../${ARCHIVE}.zip" . && cd ..
+            sha256sum "${ARCHIVE}.zip" > "${ARCHIVE}.zip.sha256"
+          else
+            tar -czf "${ARCHIVE}.tar.gz" -C dist .
+            sha256sum "${ARCHIVE}.tar.gz" > "${ARCHIVE}.tar.gz.sha256"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tavra-c-archive-${{ matrix.rid }}
+          path: |
+            *.tar.gz
+            *.tar.gz.sha256
+            *.zip
+            *.zip.sha256
+          if-no-files-found: error
+
   pack-nuget:
     name: Pack NuGet package
     needs: c-native-libs
@@ -296,8 +327,10 @@ jobs:
             echo "|----------|------|--------|"
             while read -r hash file; do
               case "$file" in
-                *.nupkg)   platform="NuGet (multi-platform)" ;;
-                tavra-c-*) platform="C API (Linux x86_64)"  ;;
+                *.nupkg)          platform="NuGet (multi-platform)"  ;;
+                tavra-c-*linux*)   platform="C API (Linux x86_64)"    ;;
+                tavra-c-*darwin*)  platform="C API (macOS ARM64)"     ;;
+                tavra-c-*windows*) platform="C API (Windows x86_64)"  ;;
                 *linux*)   platform="CLI (Linux x86_64)"    ;;
                 *darwin*)  platform="CLI (macOS ARM64)"     ;;
                 *windows*) platform="CLI (Windows x86_64)"  ;;
