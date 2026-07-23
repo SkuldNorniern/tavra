@@ -166,12 +166,18 @@ jobs:
           path: target/${{ matrix.target }}/release/${{ matrix.lib }}
           if-no-files-found: error
 
-      # Per-platform C archive (dynamic lib + header + LICENSE). Only the
-      # Linux one goes through `make test` (the c-archive job, above) —
-      # these two (macOS/Windows) are built but not smoke-tested, since
+      # Per-platform C archive (dynamic lib + header + LICENSE), macOS/
+      # Windows only — Linux is already covered by the c-archive job
+      # above (make-test-verified). Skipping linux-x64 here avoids
+      # producing a second archive with the identical filename
+      # (tavra-c-<tag>-x86_64-unknown-linux-gnu.tar.gz), which would
+      # silently clobber the verified one when the release job's
+      # download-artifact step flattens all artifacts into one dir.
+      # These two (macOS/Windows) are built but not smoke-tested, since
       # the Makefile's linker flags (-lpthread -ldl) are Linux-specific
       # and haven't been verified to work as-is on those platforms.
       - name: Package C archive
+        if: matrix.rid != 'linux-x64'
         shell: bash
         run: |
           mkdir -p dist/include
@@ -188,6 +194,7 @@ jobs:
           fi
 
       - uses: actions/upload-artifact@v4
+        if: matrix.rid != 'linux-x64'
         with:
           name: tavra-c-archive-${{ matrix.rid }}
           path: |
