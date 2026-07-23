@@ -66,3 +66,12 @@ jobs:
             Windows) export PATH="$PWD/target/debug:$PATH" ;;
           esac
           dotnet test tavra-csharp/Tavra.Tests/Tavra.Tests.csproj
+
+  nightly:
+    name: Nightly Release
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/nightly.yml
+    permissions:
+      contents: write
+    secrets: inherit
