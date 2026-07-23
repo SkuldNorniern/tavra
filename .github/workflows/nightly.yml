@@ -239,7 +239,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          # See tagged-release.yml's python-wheel job for why Linux needs
+          # the explicit interpreter pin (manylinux container otherwise
+          # defaults to the oldest supported CPython, confirmed cp39 in a
+          # real run — not the cp312 this project is actually tested on).
+          - os: ubuntu-latest
+            args: --release --out dist --interpreter python3.12
+          - os: macos-latest
+            args: --release --out dist
+          - os: windows-latest
+            args: --release --out dist
 
     steps:
       - uses: actions/checkout@v4
@@ -254,8 +264,12 @@ jobs:
         with:
           working-directory: tavra-python
           command: build
-          args: --release --out dist
+          args: ${{ matrix.args }}
           manylinux: auto
+
+      - name: Fix dist ownership (manylinux container runs as root)
+        if: runner.os == 'Linux'
+        run: sudo chown -R "$(id -u):$(id -g)" tavra-python/dist
 
       - name: Checksum
         shell: bash
