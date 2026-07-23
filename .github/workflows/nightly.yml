@@ -126,9 +126,202 @@ jobs:
             *.tar.gz.sha256
           if-no-files-found: error
 
+      # Raw lib upload (not the tar.gz above) so csharp-unity-archive can
+      # pick it up the same way it picks up c-native-libs' other legs,
+      # under the shared tavra-c-native-* artifact-name pattern.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tavra-c-native-linux-x64
+          path: target/release/libtavra_c.so
+          if-no-files-found: error
+
+  c-native-libs:
+    name: Build tavra-c native lib (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # linux-x64 intentionally excluded — c-archive above already
+          # builds and make-test-verifies it; this job exists to cover the
+          # remaining platforms/arches nightly didn't previously touch.
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            rid: linux-arm64
+            lib: libtavra_c.so
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            rid: osx-arm64
+            lib: libtavra_c.dylib
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            rid: osx-x64
+            lib: libtavra_c.dylib
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            rid: win-x64
+            lib: tavra_c.dll
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            rid: win-arm64
+            lib: tavra_c.dll
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compile linker (linux-arm64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-nightly-nuget-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.target }}-nightly-nuget-cargo-
+
+      - name: Get date
+        id: date
+        shell: bash
+        run: echo "date=$(date -u +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Build tavra-c
+        run: cargo build --release --target ${{ matrix.target }} -p tavra-c
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tavra-c-native-${{ matrix.rid }}
+          path: target/${{ matrix.target }}/release/${{ matrix.lib }}
+          if-no-files-found: error
+
+      # Not make-test-verified (Linux x86_64's c-archive job above is the
+      # only verified leg) — see tagged-release.yml for the same caveat.
+      - name: Package C archive
+        shell: bash
+        run: |
+          mkdir -p dist/include
+          cp "target/${{ matrix.target }}/release/${{ matrix.lib }}" dist/
+          cp tavra-c/include/tavra.h dist/include/
+          cp LICENSE dist/
+          ARCHIVE=tavra-c-nightly-${{ steps.date.outputs.date }}-${{ matrix.target }}
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cd dist && 7z a "../${ARCHIVE}.zip" . && cd ..
+            sha256sum "${ARCHIVE}.zip" > "${ARCHIVE}.zip.sha256"
+          else
+            tar -czf "${ARCHIVE}.tar.gz" -C dist .
+            sha256sum "${ARCHIVE}.tar.gz" > "${ARCHIVE}.tar.gz.sha256"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tavra-c-archive-${{ matrix.rid }}
+          path: |
+            *.tar.gz
+            *.tar.gz.sha256
+            *.zip
+            *.zip.sha256
+          if-no-files-found: error
+
+  python-wheel:
+    name: Build Python wheel (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: tavra-python
+          command: build
+          args: --release --out dist
+          manylinux: auto
+
+      - name: Checksum
+        shell: bash
+        run: |
+          cd tavra-python/dist
+          for f in *.whl; do sha256sum "$f" > "$f.sha256"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tavra-wheel-${{ matrix.os }}
+          path: |
+            tavra-python/dist/*.whl
+            tavra-python/dist/*.whl.sha256
+          if-no-files-found: error
+
+  csharp-unity-archive:
+    name: Package C# Unity archive
+    needs: [c-archive, c-native-libs]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build Tavra.dll
+        run: dotnet build tavra-csharp/Tavra/Tavra.csproj -c Release
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tavra-c-native-*
+          path: native-artifacts
+
+      - name: Get date
+        id: date
+        run: echo "date=$(date -u +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Assemble Unity plugin archive
+        run: |
+          mkdir -p dist/Plugins/{Linux,Linux-ARM64,macOS,macOS-x64,Windows,Windows-ARM64}
+          cp tavra-csharp/Tavra/bin/Release/netstandard2.1/Tavra.dll dist/
+          cp native-artifacts/tavra-c-native-linux-x64/libtavra_c.so dist/Plugins/Linux/
+          cp native-artifacts/tavra-c-native-linux-arm64/libtavra_c.so dist/Plugins/Linux-ARM64/
+          cp native-artifacts/tavra-c-native-osx-arm64/libtavra_c.dylib dist/Plugins/macOS/
+          cp native-artifacts/tavra-c-native-osx-x64/libtavra_c.dylib dist/Plugins/macOS-x64/
+          cp native-artifacts/tavra-c-native-win-x64/tavra_c.dll dist/Plugins/Windows/
+          cp native-artifacts/tavra-c-native-win-arm64/tavra_c.dll dist/Plugins/Windows-ARM64/
+          cp LICENSE dist/
+          ARCHIVE=tavra-csharp-unity-nightly-${{ steps.date.outputs.date }}
+          tar -czf "${ARCHIVE}.tar.gz" -C dist .
+          sha256sum "${ARCHIVE}.tar.gz" > "${ARCHIVE}.tar.gz.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tavra-csharp-unity-archive
+          path: |
+            *.tar.gz
+            *.tar.gz.sha256
+          if-no-files-found: error
+
   nightly:
     name: Publish Nightly Release
-    needs: [build, c-archive]
+    needs: [build, c-archive, c-native-libs, python-wheel, csharp-unity-archive]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -201,6 +394,7 @@ jobs:
           files: |
             artifacts/*.tar.gz
             artifacts/*.zip
+            artifacts/*.whl
             checksums.sha256
 
       - name: Update release notes with changelog and downloads table
@@ -218,11 +412,18 @@ jobs:
             echo "|----------|------|--------|"
             while read -r hash file; do
               case "$file" in
-                *tavra-c-nightly*) platform="C API (Linux x86_64)" ;;
-                *linux*)   platform="CLI (Linux x86_64)"   ;;
-                *darwin*)  platform="CLI (macOS ARM64)"     ;;
-                *windows*) platform="CLI (Windows x86_64)"  ;;
-                *)         platform="Other"           ;;
+                *unity*)                                platform="C# Unity archive (multi-platform)" ;;
+                *.whl)                                  platform="Python wheel (3.12)"           ;;
+                tavra-c-*x86_64-unknown-linux-gnu*)      platform="C API (Linux x86_64)"          ;;
+                tavra-c-*aarch64-unknown-linux-gnu*)     platform="C API (Linux ARM64)"           ;;
+                tavra-c-*aarch64-apple-darwin*)          platform="C API (macOS ARM64)"           ;;
+                tavra-c-*x86_64-apple-darwin*)           platform="C API (macOS x86_64)"          ;;
+                tavra-c-*x86_64-pc-windows-msvc*)        platform="C API (Windows x86_64)"        ;;
+                tavra-c-*aarch64-pc-windows-msvc*)       platform="C API (Windows ARM64)"         ;;
+                *x86_64-unknown-linux-gnu*)              platform="CLI (Linux x86_64)"            ;;
+                *aarch64-apple-darwin*)                  platform="CLI (macOS ARM64)"             ;;
+                *x86_64-pc-windows-msvc*)                platform="CLI (Windows x86_64)"          ;;
+                *)                                       platform="Other"                         ;;
               esac
               echo "| $platform | \`$file\` | \`${hash:0:16}...\` |"
             done < checksums.sha256
