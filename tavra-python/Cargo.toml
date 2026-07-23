@@ -7,7 +7,13 @@ license = "Apache-2.0"
 repository = "https://github.com/SkuldNorniern/tavra"
 
 [lib]
-name = "tavra"
+# Not "tavra" — that collides with the root package's `tavra` CLI binary
+# output (both would write target/debug/deps/tavra.pdb on Windows,
+# which fails the build under concurrent/parallel compilation: LNK1201,
+# "error writing to program database"). pyproject.toml's
+# `module-name = "tavra"` is what actually controls the published wheel's
+# import name — maturin renames independently of this Cargo-level name.
+name = "tavra_python"
 crate-type = ["cdylib"]
 
 [dependencies]
