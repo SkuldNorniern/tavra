@@ -32,6 +32,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install .NET SDK (for tavra-csharp)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -50,3 +55,14 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Build and test C# bindings (tavra-csharp)
+        shell: bash
+        run: |
+          dotnet build tavra-csharp/Tavra.slnx
+          case "${{ runner.os }}" in
+            Linux)   export LD_LIBRARY_PATH="$PWD/target/debug:$LD_LIBRARY_PATH" ;;
+            macOS)   export DYLD_LIBRARY_PATH="$PWD/target/debug:$DYLD_LIBRARY_PATH" ;;
+            Windows) export PATH="$PWD/target/debug:$PATH" ;;
+          esac
+          dotnet test tavra-csharp/Tavra.Tests/Tavra.Tests.csproj
