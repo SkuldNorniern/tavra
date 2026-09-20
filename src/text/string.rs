@@ -10,7 +10,7 @@ fn is_disallowed_control(c: char) -> bool {
 /// Scans a basic string: `"..."` or `"""..."""`. Cursor must be positioned
 /// at the opening `"`.
 pub fn scan_basic_string(cur: &mut Cursor) -> Result<String, Error> {
-    let triple = cur.peek() == Some('"') && cur.peek_at(1) == Some('"');
+    let triple = cur.peek_at(1) == Some('"') && cur.peek_at(2) == Some('"');
     if triple {
         cur.bump();
         cur.bump();
@@ -53,7 +53,7 @@ pub fn scan_basic_string(cur: &mut Cursor) -> Result<String, Error> {
 /// Scans a raw string: `'...'` or `'''...'''`. Cursor must be positioned at
 /// the opening `'`.
 pub fn scan_raw_string(cur: &mut Cursor) -> Result<String, Error> {
-    let triple = cur.peek() == Some('\'') && cur.peek_at(1) == Some('\'');
+    let triple = cur.peek_at(1) == Some('\'') && cur.peek_at(2) == Some('\'');
     if triple {
         cur.bump();
         cur.bump();
@@ -270,6 +270,16 @@ mod tests {
     fn basic_escapes() {
         assert_eq!(run(r#""line\nbreak""#, scan_basic_string).unwrap(), "line\nbreak");
         assert_eq!(run(r#""tab\there""#, scan_basic_string).unwrap(), "tab\there");
+    }
+
+    #[test]
+    fn empty_strings_are_not_read_as_triple_quotes() {
+        assert_eq!(run(r#""""#, scan_basic_string).unwrap(), "");
+        assert_eq!(run("''", scan_raw_string).unwrap(), "");
+        assert_eq!(run(r#""" after"#, scan_basic_string).unwrap(), "");
+        assert_eq!(run("\"\"\"\"\"\"", scan_basic_string).unwrap(), "");
+        assert!(run("\"\"\"\"\"", scan_basic_string).is_err());
+        assert_eq!(run("''''''", scan_raw_string).unwrap(), "");
     }
 
     #[test]
