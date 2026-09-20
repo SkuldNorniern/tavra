@@ -123,6 +123,13 @@ fn parse_keyword(cur: &mut Cursor) -> Result<Value, Error> {
 }
 
 fn parse_array(cur: &mut Cursor) -> Result<Value, Error> {
+    cur.enter()?;
+    let parsed = parse_array_body(cur);
+    cur.leave();
+    parsed
+}
+
+fn parse_array_body(cur: &mut Cursor) -> Result<Value, Error> {
     cur.bump(); // '['
     let mut items = Vec::new();
     skip_separators(cur);
@@ -145,6 +152,13 @@ fn parse_array(cur: &mut Cursor) -> Result<Value, Error> {
 }
 
 fn parse_inline_map(cur: &mut Cursor) -> Result<Value, Error> {
+    cur.enter()?;
+    let parsed = parse_inline_map_body(cur);
+    cur.leave();
+    parsed
+}
+
+fn parse_inline_map_body(cur: &mut Cursor) -> Result<Value, Error> {
     cur.bump(); // '{'
     let mut map = Map::new();
     skip_separators(cur);
@@ -239,6 +253,23 @@ fn expect_line_end(cur: &mut Cursor) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nesting_deeper_than_the_limit_is_refused() {
+        use crate::text::parse;
+        let inside_limit = format!("a = {}{}", "[".repeat(120), "]".repeat(120));
+        assert!(parse(&inside_limit).is_ok());
+
+        let past_limit = format!("a = {}{}", "[".repeat(200), "]".repeat(200));
+        let error = parse(&past_limit).unwrap_err();
+        assert!(error.to_string().contains("nested deeper"), "{error}");
+
+        let maps = format!("a = {}{}", "{b = ".repeat(200), "}".repeat(200));
+        assert!(parse(&maps).is_err());
+
+        let unclosed = "[".repeat(50_000);
+        assert!(parse(&unclosed).is_err());
+    }
     use crate::text::parse;
 
     fn get<'a>(doc: &'a Value, path: &[&str]) -> &'a Value {

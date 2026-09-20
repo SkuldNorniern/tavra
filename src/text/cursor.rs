@@ -7,14 +7,31 @@ pub struct Cursor {
     idx: usize,
     line: u32,
     col: u32,
+    depth: u32,
 }
+
+/// Arrays and inline maps nest by recursion, so text that nests deeper than this is refused
+/// rather than run until the stack ends.
+pub const MAX_DEPTH: u32 = 128;
 
 impl Cursor {
     pub fn new(input: &str) -> Cursor {
         // Skip a leading BOM.
         let chars: Vec<char> = input.chars().collect();
         let chars = if chars.first() == Some(&'\u{FEFF}') { chars[1..].to_vec() } else { chars };
-        Cursor { chars, idx: 0, line: 1, col: 1 }
+        Cursor { chars, idx: 0, line: 1, col: 1, depth: 0 }
+    }
+
+    pub fn enter(&mut self) -> Result<(), Error> {
+        self.depth += 1;
+        if self.depth > MAX_DEPTH {
+            return Err(self.error(format!("nested deeper than {MAX_DEPTH}")));
+        }
+        Ok(())
+    }
+
+    pub fn leave(&mut self) {
+        self.depth = self.depth.saturating_sub(1);
     }
 
     pub fn peek(&self) -> Option<char> {
