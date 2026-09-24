@@ -74,6 +74,10 @@ fn parse_radix_int(cur: &Cursor, digits: &str, radix: u32) -> Result<Value, Erro
     if cleaned.is_empty() {
         return Err(cur.error("empty numeric literal"));
     }
+    // from_str_radix takes leading '+'
+    if !cleaned.chars().all(|c| c.is_digit(radix)) {
+        return Err(cur.error("invalid digit in integer literal"));
+    }
     let v = u64::from_str_radix(&cleaned, radix).map_err(|_| cur.error("integer literal out of range or invalid"))?;
     Ok(Value::Int(Int::from_u64(v)))
 }
@@ -110,28 +114,54 @@ fn parse_float(cur: &Cursor, s: &str) -> Result<Value, Error> {
         Some(r) => (true, r),
         None => (false, s),
     };
-    if rest.starts_with('_') || rest.ends_with('_') || rest.contains("__") {
-        return Err(cur.error("misplaced '_' in numeric literal"));
+    // digits ['.' digits] [e [+-] digits], checked before '_' is removed
+    let (mantissa, exponent) = match rest.find(['e', 'E']) {
+        Some(e) => (&rest[..e], Some(&rest[e + 1..])),
+        None => (rest, None),
+    };
+    let (int_part, frac_part) = match mantissa.split_once('.') {
+        Some((i, f)) => (i, Some(f)),
+        None => (mantissa, None),
+    };
+    if !is_digit_run(int_part) {
+        return Err(if frac_part.is_some() && !int_part.contains('_') {
+            cur.error("float requires a digit before '.'")
+        } else {
+            cur.error("invalid float literal")
+        });
+    }
+    if let Some(f) = frac_part {
+        if !is_digit_run(f) {
+            return Err(if f.contains('_') { cur.error("invalid float literal") } else { cur.error("float requires a digit after '.'") });
+        }
+    }
+    if let Some(exp) = exponent {
+        let exp_digits = exp.strip_prefix(['+', '-']).unwrap_or(exp);
+        if !is_digit_run(exp_digits) {
+            return Err(cur.error("invalid float exponent"));
+        }
     }
     let cleaned = rest.replace('_', "");
-
-    // Require a digit on both sides of any '.'.
-    if let Some(dot) = cleaned.find('.') {
-        let before = &cleaned[..dot];
-        let after_start = dot + 1;
-        let exp_pos = cleaned[after_start..].find(['e', 'E']).map(|p| p + after_start);
-        let after = &cleaned[after_start..exp_pos.unwrap_or(cleaned.len())];
-        if before.is_empty() || !before.bytes().all(|b| b.is_ascii_digit()) {
-            return Err(cur.error("float requires a digit before '.'"));
-        }
-        if after.is_empty() || !after.bytes().all(|b| b.is_ascii_digit()) {
-            return Err(cur.error("float requires a digit after '.'"));
-        }
-    }
 
     let text = if neg { format!("-{cleaned}") } else { cleaned };
     let v: f64 = text.parse().map_err(|_| cur.error("invalid float literal"))?;
     Ok(Value::from(v))
+}
+
+/// Digits with '_' only between two digits.
+fn is_digit_run(s: &str) -> bool {
+    let b = s.as_bytes();
+    !b.is_empty()
+        && b[0].is_ascii_digit()
+        && b[b.len() - 1].is_ascii_digit()
+        && b.iter().all(|c| c.is_ascii_digit() || *c == b'_')
+        && !s.contains("__")
+}
+
+/// Two ASCII digits. `str::parse` would take `+1`.
+fn two_digits(s: &str) -> Option<u8> {
+    let b = s.as_bytes();
+    (b.len() == 2 && b[0].is_ascii_digit() && b[1].is_ascii_digit()).then(|| (b[0] - b'0') * 10 + (b[1] - b'0'))
 }
 
 fn parse_date_part(cur: &Cursor, s: &str) -> Result<Date, Error> {
@@ -173,9 +203,9 @@ fn parse_time_part(cur: &Cursor, s: &str) -> Result<(Time, Option<i16>), Error> 
     if s.len() < 8 || s.as_bytes()[2] != b':' || s.as_bytes()[5] != b':' {
         return Err(cur.error("invalid time literal"));
     }
-    let hour: u8 = s[0..2].parse().map_err(|_| cur.error("invalid hour"))?;
-    let minute: u8 = s[3..5].parse().map_err(|_| cur.error("invalid minute"))?;
-    let second: u8 = s[6..8].parse().map_err(|_| cur.error("invalid second"))?;
+    let hour = two_digits(&s[0..2]).ok_or_else(|| cur.error("invalid hour"))?;
+    let minute = two_digits(&s[3..5]).ok_or_else(|| cur.error("invalid minute"))?;
+    let second = two_digits(&s[6..8]).ok_or_else(|| cur.error("invalid second"))?;
 
     let mut rest = &s[8..];
     let mut nanosecond: u32 = 0;
@@ -211,9 +241,9 @@ fn parse_time_part(cur: &Cursor, s: &str) -> Result<(Time, Option<i16>), Error> 
     if digits.len() != 5 || digits.as_bytes()[2] != b':' {
         return Err(cur.error("invalid offset"));
     }
-    let oh: i16 = digits[0..2].parse().map_err(|_| cur.error("invalid offset hour"))?;
-    let om: i16 = digits[3..5].parse().map_err(|_| cur.error("invalid offset minute"))?;
-    let total = sign * (oh * 60 + om);
+    let oh = two_digits(&digits[0..2]).filter(|h| *h <= 23).ok_or_else(|| cur.error("invalid offset hour"))?;
+    let om = two_digits(&digits[3..5]).filter(|m| *m <= 59).ok_or_else(|| cur.error("invalid offset minute"))?;
+    let total = sign * (i16::from(oh) * 60 + i16::from(om));
     if total == 0 && sign < 0 {
         return Err(cur.error("-00:00 offset is not allowed"));
     }
@@ -272,6 +302,31 @@ mod tests {
         assert!(matches!(v, Value::Datetime(Datetime::Time(_))));
         let v = scan("2026-07-12T10:30:00").unwrap();
         assert!(matches!(v, Value::Datetime(Datetime::Local(_))));
+    }
+
+    #[test]
+    fn offset_components_bounded() {
+        assert!(scan("2026-01-01T00:00:00+00:99").is_err());
+        assert!(scan("2026-01-01T00:00:00+24:00").is_err());
+        assert!(scan("2026-01-01T00:00:00-23:59").is_ok());
+    }
+
+    #[test]
+    fn signs_inside_fixed_width_fields_rejected() {
+        assert!(scan("2026-01-01T00:00:00++1:00").is_err());
+        assert!(scan("2026-01-01T+1:00:00").is_err());
+        assert!(scan("00:+1:00").is_err());
+        assert!(scan("0x+F").is_err());
+        assert!(scan("0b+1").is_err());
+    }
+
+    #[test]
+    fn float_underscores_only_between_digits() {
+        for bad in ["1_.0", "1._0", "1e_3", "1_e3", "1.0e+_3", "1.0e3_", "1.0_e3", "1.0e_+3", "1.e3", "1.0e", "1.0e+"] {
+            assert!(scan(bad).is_err(), "{bad}");
+        }
+        assert_eq!(scan("1_000.000_1e1_0").unwrap(), Value::from(1_000.000_1e1_0_f64));
+        assert_eq!(scan("-1e+3").unwrap(), Value::from(-1e3_f64));
     }
 
     #[test]
