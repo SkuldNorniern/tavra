@@ -1,4 +1,5 @@
 use crate::text::error::Error;
+use crate::value::MAX_DEPTH;
 
 /// Char-indexed cursor over source text, tracking 1-based line/column for
 /// error reporting.
@@ -10,9 +11,6 @@ pub struct Cursor {
     depth: u32,
 }
 
-/// Arrays and inline maps nest by recursion, so text that nests deeper than this is refused
-/// rather than run until the stack ends.
-pub const MAX_DEPTH: u32 = 128;
 
 impl Cursor {
     pub fn new(input: &str) -> Cursor {

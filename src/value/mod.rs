@@ -11,6 +11,10 @@ pub use int::Int;
 
 use std::collections::BTreeMap;
 
+/// Max array/map nesting below root, same for every decoder. Deeper input
+/// would overflow stack.
+pub const MAX_DEPTH: u32 = 128;
+
 /// Map keys are strings; `BTreeMap`'s `str` ordering is byte-lexicographic
 /// over UTF-8, which is exactly the canonical key order.
 pub type Map = BTreeMap<String, Value>;

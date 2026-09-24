@@ -159,3 +159,28 @@ fn rejects_out_of_range_date() {
     bytes.push(1);
     assert!(decode(&bytes).is_err());
 }
+
+#[test]
+fn nesting_limit_matches_text() {
+    use crate::value::MAX_DEPTH;
+    let depth = MAX_DEPTH as usize;
+    roundtrip(&format!("a = {}{}\n", "[".repeat(depth), "]".repeat(depth)));
+    roundtrip(&format!("a = {}{}\n", "{b = ".repeat(depth - 1) + "{}", "}".repeat(depth - 1)));
+
+    // one level deeper: { "a": [[...[]...]] }
+    let mut bytes = b"TAVB".to_vec();
+    bytes.push(1); // version
+    bytes.extend_from_slice(&[0x0C, 1, 1, b'a']);
+    for _ in 0..depth {
+        bytes.extend_from_slice(&[0x0B, 1]);
+    }
+    bytes.extend_from_slice(&[0x0B, 0]);
+    let err = decode(&bytes).unwrap_err();
+    assert!(err.to_string().contains("nested deeper"), "{err}");
+
+    let mut bytes = b"TAVB".to_vec();
+    bytes.push(1);
+    bytes.extend_from_slice(&[0x0C, 1, 1, b'a']);
+    bytes.extend([0x0B, 1].repeat(1_000_000));
+    assert!(decode(&bytes).is_err());
+}
