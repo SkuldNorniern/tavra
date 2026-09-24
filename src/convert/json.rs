@@ -1,37 +1,86 @@
+use std::fmt::{self, Formatter};
+
+use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
+
 use crate::convert::check_depth;
 use crate::convert::error::ConvertError;
 use crate::value::{Int, Map, Value};
 
 /// Imports JSON as a Tavra document root. Import-only, no export.
-///
-/// Duplicate object keys resolve last-wins (`serde_json`'s own behavior,
-/// happens before we see the result).
+/// Duplicate object keys are an error.
 pub fn from_json(source: &str) -> Result<Map, ConvertError> {
-    let value: serde_json::Value = serde_json::from_str(source).map_err(|e| ConvertError::new(e.to_string()))?;
-    match json_to_value(value) {
+    let Strict(value) = serde_json::from_str(source).map_err(|e| ConvertError::new(e.to_string()))?;
+    match value {
         Value::Map(m) => check_depth(m),
         _ => Err(ConvertError::new("JSON root must be an object")),
     }
 }
 
-fn json_to_value(v: serde_json::Value) -> Value {
-    match v {
-        serde_json::Value::Null => Value::Null,
-        serde_json::Value::Bool(b) => Value::Bool(b),
-        serde_json::Value::Number(n) => json_number_to_value(&n),
-        serde_json::Value::String(s) => Value::String(s),
-        serde_json::Value::Array(items) => Value::Array(items.into_iter().map(json_to_value).collect()),
-        serde_json::Value::Object(obj) => Value::Map(obj.into_iter().map(|(k, v)| (k, json_to_value(v))).collect()),
+/// Builds `Value` straight from serde so duplicate keys can be seen.
+/// `serde_json::Value` keeps last one.
+struct Strict(Value);
+
+impl<'de> Deserialize<'de> for Strict {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_any(StrictVisitor)
     }
 }
 
-fn json_number_to_value(n: &serde_json::Number) -> Value {
-    if let Some(i) = n.as_i64() {
-        Value::Int(Int::from_i64(i))
-    } else if let Some(u) = n.as_u64() {
-        Value::Int(Int::from_u64(u))
-    } else {
-        Value::from(n.as_f64().unwrap_or(f64::NAN))
+struct StrictVisitor;
+
+impl<'de> Visitor<'de> for StrictVisitor {
+    type Value = Strict;
+
+    fn expecting(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("a JSON value")
+    }
+
+    fn visit_unit<E: de::Error>(self) -> Result<Strict, E> {
+        Ok(Strict(Value::Null))
+    }
+
+    fn visit_bool<E: de::Error>(self, b: bool) -> Result<Strict, E> {
+        Ok(Strict(Value::Bool(b)))
+    }
+
+    fn visit_i64<E: de::Error>(self, i: i64) -> Result<Strict, E> {
+        Ok(Strict(Value::Int(Int::from_i64(i))))
+    }
+
+    fn visit_u64<E: de::Error>(self, u: u64) -> Result<Strict, E> {
+        Ok(Strict(Value::Int(Int::from_u64(u))))
+    }
+
+    fn visit_f64<E: de::Error>(self, f: f64) -> Result<Strict, E> {
+        Ok(Strict(Value::from(f)))
+    }
+
+    fn visit_str<E: de::Error>(self, s: &str) -> Result<Strict, E> {
+        Ok(Strict(Value::String(s.to_string())))
+    }
+
+    fn visit_string<E: de::Error>(self, s: String) -> Result<Strict, E> {
+        Ok(Strict(Value::String(s)))
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Strict, A::Error> {
+        let mut items = Vec::new();
+        while let Some(Strict(v)) = seq.next_element()? {
+            items.push(v);
+        }
+        Ok(Strict(Value::Array(items)))
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut access: A) -> Result<Strict, A::Error> {
+        let mut map = Map::new();
+        while let Some(key) = access.next_key::<String>()? {
+            let Strict(v) = access.next_value()?;
+            if map.contains_key(&key) {
+                return Err(de::Error::custom(format!("duplicate key '{key}' in JSON object")));
+            }
+            map.insert(key, v);
+        }
+        Ok(Strict(Value::Map(map)))
     }
 }
 
@@ -67,6 +116,13 @@ mod tests {
     #[test]
     fn malformed_json_rejected() {
         assert!(from_json("{not valid json").is_err());
+    }
+
+    #[test]
+    fn duplicate_keys_rejected() {
+        assert!(from_json(r#"{"a": 1, "a": 2}"#).is_err());
+        assert!(from_json(r#"{"m": {"x": 1, "x": 1}}"#).is_err());
+        assert!(from_json(r#"{"a": {"x": 1}, "b": [{"x": 1}, {"x": 2}]}"#).is_ok());
     }
 
     #[test]

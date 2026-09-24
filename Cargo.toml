@@ -37,9 +37,9 @@ envelope = [
     "dep:rand",
     "dep:zstd",
 ]
-json = ["dep:serde_json"]
+json = ["dep:serde", "dep:serde_json"]
 toml = ["dep:toml"]
-yaml = ["dep:saphyr"]
+yaml = ["dep:saphyr", "dep:saphyr-parser"]
 
 [dependencies]
 argon2 = { version = "0.5.3", optional = true }
@@ -48,6 +48,8 @@ chacha20poly1305 = { version = "0.11.0", optional = true }
 ed25519-dalek = { version = "3.0.0", optional = true }
 rand = { version = "0.10.2", optional = true }
 saphyr = { version = "0.0.11", optional = true }
+saphyr-parser = { version = "0.0.11", optional = true }
+serde = { version = "1.0", optional = true }
 serde_json = { version = "1.0.150", optional = true }
 toml = { version = "1.1.2", optional = true }
 zstd = { version = "0.13.3", optional = true }

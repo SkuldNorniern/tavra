@@ -719,6 +719,8 @@ dependencies = [
  "ed25519-dalek",
  "rand",
  "saphyr",
+ "saphyr-parser",
+ "serde",
  "serde_json",
  "toml",
  "zstd",
