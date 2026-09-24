@@ -20,6 +20,9 @@ pub fn validate(schema: &Map, doc: &Map) -> Result<Vec<Violation>, SchemaError> 
     if compiled.type_name != "map" {
         return Err(SchemaError::new("", "root schema 'type' must be \"map\""));
     }
+    if compiled.optional {
+        return Err(SchemaError::new("", "'optional' does not apply to the root schema"));
+    }
     Ok(validate::validate_root(&compiled, doc))
 }
 
@@ -48,6 +51,12 @@ mod tests {
         let schema = parse_map("type = \"string\"\n");
         let doc = parse_map("name = \"demo\"\n");
         assert!(validate(&schema, &doc).is_err());
+    }
+
+    #[test]
+    fn optional_root_is_schema_error() {
+        let schema = parse_map("type = \"map\"\noptional = true\n");
+        assert!(validate(&schema, &parse_map("a = 1\n")).is_err());
     }
 
     #[test]

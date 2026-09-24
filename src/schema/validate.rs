@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::value::{Map, Value};
 
 use crate::schema::error::Violation;
@@ -37,6 +39,11 @@ fn render(path: &[PathSegment]) -> String {
 pub fn validate_root(spec: &FieldSpec, doc: &Map) -> Vec<Violation> {
     let mut out = Vec::new();
     let mut path = Vec::new();
+    if let Some(allowed) = &spec.enum_values {
+        if !allowed.iter().any(|v| matches!(v, Value::Map(m) if m == doc)) {
+            out.push(Violation::new(render(&path), "value not in enum"));
+        }
+    }
     validate_map_body(spec, doc, &mut path, &mut out);
     out
 }
@@ -70,9 +77,9 @@ fn validate(spec: &FieldSpec, value: &Value, path: &mut Vec<PathSegment>, out: &
 }
 
 fn validate_map_body(spec: &FieldSpec, map: &Map, path: &mut Vec<PathSegment>, out: &mut Vec<Violation>) {
-    let Some(fields) = &spec.fields else {
-        return;
-    };
+    // closed with no fields = empty map only
+    let no_fields = BTreeMap::new();
+    let fields = spec.fields.as_ref().unwrap_or(&no_fields);
     for (key, field_spec) in fields.iter() {
         path.push(PathSegment::Key(key.clone()));
         match map.get(key) {
@@ -153,6 +160,27 @@ mod tests {
         let violations = check(schema, "name = \"demo\"\nextra = 1\n");
         assert_eq!(violations.len(), 1);
         assert_eq!(violations[0].path, "extra");
+    }
+
+    #[test]
+    fn closed_without_fields_accepts_only_empty_map() {
+        let schema = "type = \"map\"\nfields = {\n    m = { type = \"map\", closed = true }\n}\n";
+        assert_eq!(check(schema, "m = {}\n"), Vec::new());
+        let violations = check(schema, "m = { anything = 1 }\n");
+        assert_eq!(violations.len(), 1);
+        assert_eq!(violations[0].path, "m.anything");
+
+        let root = "type = \"map\"\nclosed = true\n";
+        assert_eq!(check(root, "x = 1\n").len(), 1);
+    }
+
+    #[test]
+    fn root_enum_is_checked() {
+        let schema = "type = \"map\"\nenum = [{ mode = \"a\" }, { mode = \"b\" }]\n";
+        assert_eq!(check(schema, "mode = \"a\"\n"), Vec::new());
+        let violations = check(schema, "mode = \"c\"\n");
+        assert_eq!(violations.len(), 1);
+        assert_eq!(violations[0].path, "<root>");
     }
 
     #[test]

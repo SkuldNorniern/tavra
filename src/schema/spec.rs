@@ -82,6 +82,18 @@ pub fn compile(raw: &Map, path: &mut Vec<String>) -> Result<FieldSpec, SchemaErr
         Some(_) => return Err(err(path, "'items' must be a map")),
     };
 
+    // validator ignores these on other types
+    if type_name != "map" {
+        for key in ["fields", "closed"] {
+            if raw.contains_key(key) {
+                return Err(err(path, format!("'{key}' only applies to type \"map\", not \"{type_name}\"")));
+            }
+        }
+    }
+    if type_name != "array" && raw.contains_key("items") {
+        return Err(err(path, format!("'items' only applies to type \"array\", not \"{type_name}\"")));
+    }
+
     Ok(FieldSpec { type_name, optional, enum_values, fields, closed, items })
 }
 
@@ -140,6 +152,16 @@ mod tests {
     fn items_compile() {
         let spec = compile_schema("type = \"array\"\nitems = { type = \"string\" }\n").unwrap();
         assert_eq!(spec.items.unwrap().type_name, "string");
+    }
+
+    #[test]
+    fn keys_for_other_types_rejected() {
+        assert!(compile_schema("type = \"string\"\nfields = { a = { type = \"int\" } }\n").is_err());
+        assert!(compile_schema("type = \"array\"\nclosed = true\n").is_err());
+        assert!(compile_schema("type = \"int\"\nitems = { type = \"int\" }\n").is_err());
+        assert!(compile_schema("type = \"map\"\nitems = { type = \"int\" }\n").is_err());
+        let err = compile_schema("type = \"map\"\nfields = { a = { type = \"int\", closed = false } }\n").unwrap_err();
+        assert_eq!(err.path, "fields.a");
     }
 
     #[test]
