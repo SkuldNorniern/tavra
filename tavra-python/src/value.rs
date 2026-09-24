@@ -12,7 +12,7 @@ use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyList, PyString};
 
-use tavra::value::{Date, Datetime, LocalDateTime, OffsetDateTime, Time};
+use tavra::value::{Date, Datetime, LocalDateTime, MAX_DEPTH, OffsetDateTime, Time};
 use tavra::{Int, Map, Value};
 
 pub fn value_to_py(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
@@ -92,7 +92,16 @@ fn local_datetime_to_py(py: Python<'_>, datetime_mod: &Bound<'_, PyModule>, ldt:
     }
 }
 
+/// Converts document root. Top-level dict is root map, so its values are depth 0.
 pub fn py_to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
+    match obj.cast::<PyDict>() {
+        Ok(dict) => py_to_map_at(dict, 0).map(Value::Map),
+        Err(_) => py_to_value_at(obj, 0),
+    }
+}
+
+/// `depth` = lists/dicts around `obj`, below root. Stops self-referencing list.
+fn py_to_value_at(obj: &Bound<'_, PyAny>, depth: u32) -> PyResult<Value> {
     if obj.is_none() {
         return Ok(Value::Null);
     }
@@ -117,24 +126,27 @@ pub fn py_to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     if let Some(dt) = py_to_datetime(obj)? {
         return Ok(Value::Datetime(dt));
     }
+    if (obj.cast::<PyList>().is_ok() || obj.cast::<PyDict>().is_ok()) && depth >= MAX_DEPTH {
+        return Err(PyValueError::new_err(format!("nested deeper than {MAX_DEPTH}")));
+    }
     if let Ok(list) = obj.cast::<PyList>() {
         let mut items = Vec::with_capacity(list.len());
         for item in list.iter() {
-            items.push(py_to_value(&item)?);
+            items.push(py_to_value_at(&item, depth + 1)?);
         }
         return Ok(Value::Array(items));
     }
     if let Ok(dict) = obj.cast::<PyDict>() {
-        return Ok(Value::Map(py_to_map(dict)?));
+        return Ok(Value::Map(py_to_map_at(dict, depth + 1)?));
     }
     Err(PyTypeError::new_err(format!("unsupported Python type for Tavra value: {}", obj.get_type().name()?)))
 }
 
-pub fn py_to_map(dict: &Bound<'_, PyDict>) -> PyResult<Map> {
+fn py_to_map_at(dict: &Bound<'_, PyDict>, depth: u32) -> PyResult<Map> {
     let mut map = Map::new();
     for (k, v) in dict.iter() {
         let key: String = k.extract().map_err(|_| PyTypeError::new_err("Tavra map keys must be strings"))?;
-        let value = py_to_value(&v)?;
+        let value = py_to_value_at(&v, depth)?;
         if map.insert(key.clone(), value).is_some() {
             return Err(PyValueError::new_err(format!("duplicate key '{key}'")));
         }
