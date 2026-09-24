@@ -37,12 +37,17 @@ pub struct SealOptions<'a> {
 pub fn seal(root: &Map, opts: &SealOptions<'_>) -> Vec<u8> {
     let value_bytes = binary::encode_value_bytes(root);
 
-    let plaintext = if opts.compress { compress::compress(&value_bytes).unwrap_or(value_bytes.clone()) } else { value_bytes.clone() };
+    // store raw if compression fails or payload is over open's limit
+    let compressed = (opts.compress && value_bytes.len() <= compress::MAX_DECOMPRESSED_LEN)
+        .then(|| compress::compress(&value_bytes).ok())
+        .flatten();
+    let is_compressed = compressed.is_some();
+    let plaintext = compressed.unwrap_or_else(|| value_bytes.clone());
 
     let flags = Flags {
         encrypted: !matches!(opts.mode, SealMode::None),
         signed: opts.sign_with.is_some(),
-        compressed: opts.compress,
+        compressed: is_compressed,
         password: matches!(opts.mode, SealMode::Password(_)),
     };
 
