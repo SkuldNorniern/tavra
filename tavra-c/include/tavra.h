@@ -80,7 +80,7 @@ int32_t tav_seal_key(const TavValue *value, const uint8_t *key, bool compress, c
 int32_t tav_seal_password(const TavValue *value, const uint8_t *password, size_t password_len, bool compress, const uint8_t *sign_key, uint8_t **out_data, size_t *out_len);
 
 /* Opens an unencrypted .tave document. verify_key is NULL or 32 bytes
- * (Ed25519 public key) — if non-NULL, a present signature is checked.
+ * (Ed25519 public key) — if non-NULL, document must be signed by that key.
  * Output written to *out_value on success (free with tav_value_free). */
 int32_t tav_open_none(const uint8_t *data, size_t len, const uint8_t *verify_key, TavValue **out_value);
 

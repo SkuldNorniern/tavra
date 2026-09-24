@@ -133,3 +133,24 @@ fn rejects_tampered_ciphertext() {
     bytes[last] ^= 0x01;
     assert!(open(&bytes, &OpenMode::Key(&key), None).is_err());
 }
+
+#[test]
+fn unsigned_document_fails_when_verification_requested() {
+    let root = parse_map("a = 1\n");
+    let (_, pk) = generate_signing_key();
+    let bytes = seal(&root, &SealOptions { mode: SealMode::None, compress: false, sign_with: None });
+    assert!(open(&bytes, &OpenMode::None, Some(&pk)).is_err());
+}
+
+#[test]
+fn stripped_signature_fails_verification() {
+    // clear SIGNED and drop signature bytes; unencrypted header has no auth
+    let root = parse_map("a = 1\n");
+    let (sk, pk) = generate_signing_key();
+    let signed = seal(&root, &SealOptions { mode: SealMode::None, compress: false, sign_with: Some(&sk) });
+    let mut stripped = signed[..6].to_vec();
+    stripped[5] = Flags { encrypted: false, signed: false, compressed: false, password: false }.to_byte();
+    stripped.extend_from_slice(&signed[6 + sign::SIGNATURE_LEN..]);
+    assert_eq!(open(&stripped, &OpenMode::None, None).unwrap(), root);
+    assert!(open(&stripped, &OpenMode::None, Some(&pk)).is_err());
+}

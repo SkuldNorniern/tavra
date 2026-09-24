@@ -54,8 +54,8 @@ pub fn seal(py: Python<'_>, value: &Bound<'_, PyAny>, key: Option<&[u8]>, passwo
 }
 
 /// Opens a `.tave` document. Exactly one of `key`/`password` may be given
-/// if the document is encrypted. `verify_with`, if given, checks a
-/// present signature against that Ed25519 public key.
+/// if the document is encrypted. With `verify_with`, document must be
+/// signed by that key.
 #[pyfunction]
 #[pyo3(signature = (data, key=None, password=None, verify_with=None))]
 pub fn open(py: Python<'_>, data: &[u8], key: Option<&[u8]>, password: Option<&[u8]>, verify_with: Option<&[u8]>) -> PyResult<Py<PyAny>> {

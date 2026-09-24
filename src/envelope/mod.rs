@@ -90,9 +90,8 @@ pub enum OpenMode<'a> {
 }
 
 /// Decrypts (if needed), decompresses (if needed), and decodes a `.tave`
-/// document. If `verify_with` is `Some`, a present signature is checked
-/// against that Ed25519 public key; a `SIGNED` document with `verify_with =
-/// None` is accepted without verification (caller's choice not to check).
+/// document. With `verify_with`, document must be signed by that key;
+/// unsigned is rejected. Without it, signature is not checked.
 pub fn open(bytes: &[u8], mode: &OpenMode<'_>, verify_with: Option<&[u8; sign::PUBLIC_KEY_LEN]>) -> Result<Map, Error> {
     let mut pos = 0;
     let magic = header::read_bytes(bytes, &mut pos, 4)?;
@@ -107,6 +106,10 @@ pub fn open(bytes: &[u8], mode: &OpenMode<'_>, verify_with: Option<&[u8; sign::P
 
     let kdf_params =
         if flags.password { Some(KdfParams::decode(bytes, &mut pos)?) } else { None };
+
+    if verify_with.is_some() && !flags.signed {
+        return Err(Error::new("signature required but document is unsigned"));
+    }
 
     match (&mode, flags.encrypted, flags.password) {
         (OpenMode::None, true, _) => return Err(Error::new("document is encrypted; a key or password is required")),
@@ -155,7 +158,8 @@ pub fn open(bytes: &[u8], mode: &OpenMode<'_>, verify_with: Option<&[u8; sign::P
 
     let value_bytes = if flags.compressed { compress::decompress(&plaintext)? } else { plaintext };
 
-    if let (Some(sig), Some(pk)) = (signature, verify_with) {
+    if let Some(pk) = verify_with {
+        let sig = signature.ok_or_else(|| Error::new("signature required but document is unsigned"))?;
         sign::verify(pk, &value_bytes, &sig)?;
     }
 
