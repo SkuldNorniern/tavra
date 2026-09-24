@@ -87,8 +87,8 @@ seal/open):
 ```
 tav fmt [--write] <path>
 tav check [--schema <schema.tav>] <path>
-tav genkey <keyfile>
-tav gensignkey <secretfile> <publicfile>
+tav genkey [--force] <keyfile>
+tav gensignkey [--force] <secretfile> <publicfile>
 tav pack <in.tav> <out.tave> [--key <keyfile> | --password <passwordfile>] [--compress] [--sign <secretfile>]
 tav unpack <in.tave> <out.tav> [--key <keyfile> | --password <passwordfile>] [--verify <publicfile>]
 tav convert <in> <out>   # .tav/.tavb/.json/.toml/.yaml/.yml -> .tav/.tavb
@@ -96,6 +96,8 @@ tav convert <in> <out>   # .tav/.tavb/.json/.toml/.yaml/.yml -> .tav/.tavb
 
 Keys and passwords are always read from files, never passed as arguments.
 Argv ends up in shell history and `ps` output; secrets don't belong there.
+Generated secret keys are written with mode 0600 on Unix, and `genkey`/
+`gensignkey` refuse to overwrite an existing file without `--force`.
 
 ## Building
 

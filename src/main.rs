@@ -1,5 +1,10 @@
+use std::fs::OpenOptions;
+use std::io::{self, Write};
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::{Path, PathBuf};
+use std::process::{self, ExitCode};
 use std::{env, fs};
-use std::process::ExitCode;
 
 use tavra::envelope::{self, OpenMode, SealMode, SealOptions};
 use tavra::{binary, convert, schema, text};
@@ -20,8 +25,8 @@ fn main() -> ExitCode {
                 "usage:\n  \
                  tav fmt [--write] <path>\n  \
                  tav check [--schema <schema.tav>] <path>\n  \
-                 tav genkey <keyfile>\n  \
-                 tav gensignkey <secretfile> <publicfile>\n  \
+                 tav genkey [--force] <keyfile>\n  \
+                 tav gensignkey [--force] <secretfile> <publicfile>\n  \
                  tav pack <in.tav> <out.tave> [--key <keyfile> | --password <passwordfile>] [--compress] [--sign <secretfile>]\n  \
                  tav unpack <in.tave> <out.tav> [--key <keyfile> | --password <passwordfile>] [--verify <publicfile>]\n  \
                  tav convert <in> <out>  (in: .tav/.tavb/.json/.toml/.yaml/.yml, out: .tav/.tavb)"
@@ -127,29 +132,36 @@ fn cmd_check(args: &[String]) -> ExitCode {
 }
 
 fn cmd_genkey(args: &[String]) -> ExitCode {
-    let Some(parsed) = parse_or_usage(args, &[], &[], 1, "tav genkey <keyfile>") else {
+    let Some(parsed) = parse_or_usage(args, &[], &["--force"], 1, "tav genkey [--force] <keyfile>") else {
         return ExitCode::FAILURE;
     };
     let path = parsed.positional[0];
-    if let Err(e) = fs::write(path, envelope::generate_key()) {
-        eprintln!("{path}: {e}");
+    let key = envelope::generate_key();
+    if let Err(e) = write_key_files(&[KeyFile { path, bytes: &key, secret: true }], parsed.has("--force")) {
+        eprintln!("{e}");
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
 }
 
 fn cmd_gensignkey(args: &[String]) -> ExitCode {
-    let Some(parsed) = parse_or_usage(args, &[], &[], 2, "tav gensignkey <secretfile> <publicfile>") else {
+    let Some(parsed) =
+        parse_or_usage(args, &[], &["--force"], 2, "tav gensignkey [--force] <secretfile> <publicfile>")
+    else {
         return ExitCode::FAILURE;
     };
     let (secret_path, public_path) = (parsed.positional[0], parsed.positional[1]);
-    let (secret, public) = envelope::generate_signing_key();
-    if let Err(e) = fs::write(secret_path, secret) {
-        eprintln!("{secret_path}: {e}");
+    if resolve(secret_path) == resolve(public_path) {
+        eprintln!("secret and public key paths are the same file");
         return ExitCode::FAILURE;
     }
-    if let Err(e) = fs::write(public_path, public) {
-        eprintln!("{public_path}: {e}");
+    let (secret, public) = envelope::generate_signing_key();
+    let files = [
+        KeyFile { path: secret_path, bytes: &secret, secret: true },
+        KeyFile { path: public_path, bytes: &public, secret: false },
+    ];
+    if let Err(e) = write_key_files(&files, parsed.has("--force")) {
+        eprintln!("{e}");
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
@@ -388,6 +400,64 @@ fn read_as_map(path: &str) -> Result<Map, String> {
         return convert::from_yaml(&source).map_err(|e| e.to_string());
     }
     Err("unsupported input extension (use .tav/.tavb/.json/.toml/.yaml/.yml)".to_string())
+}
+
+struct KeyFile<'a> {
+    path: &'a str,
+    bytes: &'a [u8],
+    secret: bool,
+}
+
+/// Writes all files to temp files first and renames after, so a failed
+/// write never leaves half a key pair or truncates an existing key.
+/// Existing files need `force`. Secret files are 0600 on unix.
+fn write_key_files(files: &[KeyFile<'_>], force: bool) -> Result<(), String> {
+    if !force {
+        if let Some(f) = files.iter().find(|f| Path::new(f.path).exists()) {
+            return Err(format!("{}: already exists (pass --force to overwrite)", f.path));
+        }
+    }
+    let temps: Vec<String> = files.iter().map(|f| format!("{}.tmp-{}", f.path, process::id())).collect();
+    let result = files.iter().zip(&temps).try_for_each(|(f, tmp)| write_new(tmp, f.bytes, f.secret).map_err(|e| format!("{}: {e}", f.path)));
+    let result = result.and_then(|()| {
+        files.iter().zip(&temps).try_for_each(|(f, tmp)| fs::rename(tmp, f.path).map_err(|e| format!("{}: {e}", f.path)))
+    });
+    if result.is_err() {
+        for tmp in &temps {
+            let _ = fs::remove_file(tmp);
+        }
+    }
+    result
+}
+
+fn write_new(path: &str, bytes: &[u8], secret: bool) -> io::Result<()> {
+    let mut opts = OpenOptions::new();
+    opts.write(true).create_new(true);
+    restrict_to_owner(&mut opts, secret);
+    let mut file = opts.open(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()
+}
+
+#[cfg(unix)]
+fn restrict_to_owner(opts: &mut OpenOptions, secret: bool) {
+    if secret {
+        opts.mode(0o600);
+    }
+}
+
+#[cfg(not(unix))]
+fn restrict_to_owner(_opts: &mut OpenOptions, _secret: bool) {}
+
+/// Absolute form of `path` for comparing two output paths. File itself
+/// doesn't have to exist yet.
+fn resolve(path: &str) -> PathBuf {
+    let p = Path::new(path);
+    let dir = p.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    match (fs::canonicalize(dir), p.file_name()) {
+        (Ok(dir), Some(name)) => dir.join(name),
+        _ => p.to_path_buf(),
+    }
 }
 
 /// Reads a fixed-size key/secret from a file — key material comes from
