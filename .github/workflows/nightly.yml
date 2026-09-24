@@ -26,7 +26,7 @@ jobs:
             artifact: tavra.exe
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -34,7 +34,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -69,7 +69,7 @@ jobs:
           fi
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tavra-cli-${{ matrix.target }}
           path: |
@@ -84,13 +84,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -118,7 +118,7 @@ jobs:
           tar -czf "${ARCHIVE}.tar.gz" -C dist .
           sha256sum "${ARCHIVE}.tar.gz" > "${ARCHIVE}.tar.gz.sha256"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: tavra-c-x86_64-unknown-linux-gnu
           path: |
@@ -129,7 +129,7 @@ jobs:
       # Raw lib upload (not the tar.gz above) so csharp-unity-archive can
       # pick it up the same way it picks up c-native-libs' other legs,
       # under the shared tavra-c-native-* artifact-name pattern.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: tavra-c-native-linux-x64
           path: target/release/libtavra_c.so
@@ -167,7 +167,7 @@ jobs:
             lib: tavra_c.dll
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -182,7 +182,7 @@ jobs:
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -199,7 +199,7 @@ jobs:
       - name: Build tavra-c
         run: cargo build --release --target ${{ matrix.target }} -p tavra-c
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: tavra-c-native-${{ matrix.rid }}
           path: target/${{ matrix.target }}/release/${{ matrix.lib }}
@@ -223,7 +223,7 @@ jobs:
             sha256sum "${ARCHIVE}.tar.gz" > "${ARCHIVE}.tar.gz.sha256"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: tavra-c-archive-${{ matrix.rid }}
           path: |
@@ -243,10 +243,10 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -268,7 +268,7 @@ jobs:
           cd tavra-python/dist
           for f in *.whl; do sha256sum "$f" > "$f.sha256"; done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: tavra-wheel-${{ matrix.os }}
           path: |
@@ -282,17 +282,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
 
       - name: Build Tavra.dll
         run: dotnet build tavra-csharp/Tavra/Tavra.csproj -c Release
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: tavra-c-native-*
           path: native-artifacts
@@ -316,7 +316,7 @@ jobs:
           tar -czf "${ARCHIVE}.tar.gz" -C dist .
           sha256sum "${ARCHIVE}.tar.gz" > "${ARCHIVE}.tar.gz.sha256"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: tavra-csharp-unity-archive
           path: |
@@ -335,7 +335,7 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -381,7 +381,7 @@ jobs:
           } > CHANGELOG.md
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: artifacts
           merge-multiple: true
