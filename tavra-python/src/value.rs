@@ -161,13 +161,20 @@ fn py_to_datetime(obj: &Bound<'_, PyAny>) -> PyResult<Option<Datetime>> {
         let time = Time::new(hour, minute, second, microsecond * 1000).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
         let local = LocalDateTime { date, time };
 
-        let tzinfo = obj.getattr("tzinfo")?;
-        if tzinfo.is_none() {
+        // tzinfo can return None, then it's naive
+        let offset_delta = obj.call_method0("utcoffset")?;
+        if offset_delta.is_none() {
             return Ok(Some(Datetime::Local(local)));
         }
-        let offset_delta = obj.call_method0("utcoffset")?;
-        let total_seconds: f64 = offset_delta.call_method0("total_seconds")?.extract()?;
-        let offset_minutes = (total_seconds / 60.0) as i16;
+        // tavra offsets are whole minutes
+        let days: i64 = offset_delta.getattr("days")?.extract()?;
+        let seconds: i64 = offset_delta.getattr("seconds")?.extract()?;
+        let microseconds: i64 = offset_delta.getattr("microseconds")?.extract()?;
+        let total_seconds = days * 86_400 + seconds;
+        if microseconds != 0 || total_seconds % 60 != 0 {
+            return Err(PyValueError::new_err("UTC offset must be a whole number of minutes"));
+        }
+        let offset_minutes = i16::try_from(total_seconds / 60).map_err(|_| PyValueError::new_err("UTC offset out of range"))?;
         let odt = OffsetDateTime::new(local, offset_minutes).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
         return Ok(Some(Datetime::Offset(odt)));
     }
@@ -187,6 +194,9 @@ fn py_to_datetime(obj: &Bound<'_, PyAny>) -> PyResult<Option<Datetime>> {
         let minute: u8 = obj.getattr("minute")?.extract()?;
         let second: u8 = obj.getattr("second")?.extract()?;
         let microsecond: u32 = obj.getattr("microsecond")?.extract()?;
+        if !obj.getattr("tzinfo")?.is_none() {
+            return Err(PyValueError::new_err("a time with tzinfo has no Tavra equivalent (bare times carry no offset)"));
+        }
         let time = Time::new(hour, minute, second, microsecond * 1000).map_err(|e| PyValueError::new_err(format!("{e:?}")))?;
         return Ok(Some(Datetime::Time(time)));
     }
