@@ -1,12 +1,13 @@
 use toml::value::{Datetime as TomlDatetime, Offset as TomlOffset};
 
+use crate::convert::check_depth;
 use crate::convert::error::ConvertError;
 use crate::value::{Date, Datetime, DatetimeError, Int, LocalDateTime, Map, OffsetDateTime, Time, Value};
 
 pub fn from_toml(source: &str) -> Result<Map, ConvertError> {
     let value: toml::Value = toml::from_str(source).map_err(|e| ConvertError::new(e.to_string()))?;
     match toml_to_value(value)? {
-        Value::Map(m) => Ok(m),
+        Value::Map(m) => check_depth(m),
         _ => Err(ConvertError::new("TOML root must be a table")),
     }
 }

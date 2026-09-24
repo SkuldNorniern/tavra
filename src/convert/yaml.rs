@@ -1,5 +1,6 @@
 use saphyr::{LoadableYamlNode, ScalarOwned, YamlOwned};
 
+use crate::convert::check_depth;
 use crate::convert::error::ConvertError;
 use crate::value::{Int, Map, Value};
 
@@ -15,7 +16,7 @@ pub fn from_yaml(source: &str) -> Result<Map, ConvertError> {
         return Err(ConvertError::new("YAML source has no documents"));
     };
     match yaml_to_value(root)? {
-        Value::Map(m) => Ok(m),
+        Value::Map(m) => check_depth(m),
         _ => Err(ConvertError::new("YAML root must be a mapping")),
     }
 }

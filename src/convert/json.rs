@@ -1,3 +1,4 @@
+use crate::convert::check_depth;
 use crate::convert::error::ConvertError;
 use crate::value::{Int, Map, Value};
 
@@ -8,7 +9,7 @@ use crate::value::{Int, Map, Value};
 pub fn from_json(source: &str) -> Result<Map, ConvertError> {
     let value: serde_json::Value = serde_json::from_str(source).map_err(|e| ConvertError::new(e.to_string()))?;
     match json_to_value(value) {
-        Value::Map(m) => Ok(m),
+        Value::Map(m) => check_depth(m),
         _ => Err(ConvertError::new("JSON root must be an object")),
     }
 }
