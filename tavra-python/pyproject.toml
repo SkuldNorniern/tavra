@@ -8,11 +8,7 @@ version = "0.1.0"
 description = "Python bindings for Tavra — a readable data/config format with a canonical binary form and an encrypted, signed envelope"
 readme = "../README.md"
 license = "Apache-2.0"
-# Capped below 3.14: pyo3 0.27 segfaults against 3.14's ABI (confirmed by
-# hand — generate_signing_key()'s return-tuple construction crashes on
-# 3.14, works cleanly on 3.12). Raise this once pyo3 ships real 3.14
-# support and re-verify before removing the cap.
-requires-python = ">=3.9,<3.14"
+requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",

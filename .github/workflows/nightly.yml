@@ -239,17 +239,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # See tagged-release.yml's python-wheel job for why Linux needs
-          # the explicit interpreter pin (manylinux container otherwise
-          # defaults to the oldest supported CPython, confirmed cp39 in a
-          # real run — not the cp312 this project is actually tested on).
-          - os: ubuntu-latest
-            args: --release --out dist --interpreter python3.12
-          - os: macos-latest
-            args: --release --out dist
-          - os: windows-latest
-            args: --release --out dist
+        # abi3-py39 wheel, so interpreter used for build doesn't matter
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -264,7 +255,7 @@ jobs:
         with:
           working-directory: tavra-python
           command: build
-          args: ${{ matrix.args }}
+          args: --release --out dist
           manylinux: auto
 
       - name: Fix dist ownership (manylinux container runs as root)
@@ -427,7 +418,7 @@ jobs:
             while read -r hash file; do
               case "$file" in
                 *unity*)                                platform="C# Unity archive (multi-platform)" ;;
-                *.whl)                                  platform="Python wheel (3.12)"           ;;
+                *.whl)                                  platform="Python wheel (3.9+, abi3)"     ;;
                 tavra-c-*x86_64-unknown-linux-gnu*)      platform="C API (Linux x86_64)"          ;;
                 tavra-c-*aarch64-unknown-linux-gnu*)     platform="C API (Linux ARM64)"           ;;
                 tavra-c-*aarch64-apple-darwin*)          platform="C API (macOS ARM64)"           ;;
