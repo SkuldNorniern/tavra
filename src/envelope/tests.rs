@@ -154,3 +154,13 @@ fn stripped_signature_fails_verification() {
     assert_eq!(open(&stripped, &OpenMode::None, None).unwrap(), root);
     assert!(open(&stripped, &OpenMode::None, Some(&pk)).is_err());
 }
+
+#[test]
+fn rejects_hostile_kdf_params_before_deriving() {
+    let root = parse_map("a = 1\n");
+    let mut bytes = seal(&root, &SealOptions { mode: SealMode::Password(b"pw"), compress: false, sign_with: None });
+    // m_cost after magic(4) version(1) flags(1) salt(16)
+    bytes[22..26].copy_from_slice(&u32::MAX.to_be_bytes());
+    let err = open(&bytes, &OpenMode::Password(b"pw"), None).unwrap_err();
+    assert!(err.to_string().contains("exceed limits"), "{err}");
+}
