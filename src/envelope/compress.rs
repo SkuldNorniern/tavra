@@ -4,19 +4,19 @@ use zstd::stream::encode_all;
 use zstd::stream::read::Decoder;
 
 use crate::envelope::error::Error;
-
-/// Max `decompress` output. `seal` skips compression above this.
-pub const MAX_DECOMPRESSED_LEN: usize = 256 * 1024 * 1024;
+#[cfg(test)]
+use crate::limits::Limits;
 
 pub fn compress(data: &[u8]) -> Result<Vec<u8>, Error> {
     encode_all(data, 0).map_err(|e| Error::new(format!("zstd compression failed: {e}")))
 }
 
-pub fn decompress(data: &[u8]) -> Result<Vec<u8>, Error> {
-    decompress_limited(data, MAX_DECOMPRESSED_LEN)
+#[cfg(test)]
+fn decompress(data: &[u8]) -> Result<Vec<u8>, Error> {
+    decompress_limited(data, Limits::default().max_decompressed_len)
 }
 
-fn decompress_limited(data: &[u8], limit: usize) -> Result<Vec<u8>, Error> {
+pub fn decompress_limited(data: &[u8], limit: usize) -> Result<Vec<u8>, Error> {
     let err = |e| Error::new(format!("zstd decompression failed: {e}"));
     let decoder = Decoder::new(data).map_err(err)?;
     let mut out = Vec::new();

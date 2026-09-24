@@ -1,5 +1,5 @@
+use crate::limits::Limits;
 use crate::text::error::Error;
-use crate::value::MAX_DEPTH;
 
 /// Char-indexed cursor over source text, tracking 1-based line/column for
 /// error reporting.
@@ -9,6 +9,7 @@ pub struct Cursor {
     line: u32,
     col: u32,
     depth: u32,
+    max_depth: u32,
 }
 
 
@@ -17,13 +18,17 @@ impl Cursor {
         // Skip a leading BOM.
         let chars: Vec<char> = input.chars().collect();
         let chars = if chars.first() == Some(&'\u{FEFF}') { chars[1..].to_vec() } else { chars };
-        Cursor { chars, idx: 0, line: 1, col: 1, depth: 0 }
+        Cursor { chars, idx: 0, line: 1, col: 1, depth: 0, max_depth: Limits::default().depth() }
+    }
+
+    pub fn with_limits(input: &str, limits: &Limits) -> Cursor {
+        Cursor { max_depth: limits.depth(), ..Cursor::new(input) }
     }
 
     pub fn enter(&mut self) -> Result<(), Error> {
         self.depth += 1;
-        if self.depth > MAX_DEPTH {
-            return Err(self.error(format!("nested deeper than {MAX_DEPTH}")));
+        if self.depth > self.max_depth {
+            return Err(self.error(format!("nested deeper than {}", self.max_depth)));
         }
         Ok(())
     }

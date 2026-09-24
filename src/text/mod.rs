@@ -9,11 +9,17 @@ mod string;
 
 pub use error::Error;
 
+use crate::limits::Limits;
 use crate::value::{Map, Value};
 use cursor::Cursor;
 
 pub fn parse(input: &str) -> Result<Value, Error> {
-    let mut cur = Cursor::new(input);
+    parse_with_limits(input, &Limits::default())
+}
+
+/// [`parse`] with caller's limits. Only `max_depth` applies to text.
+pub fn parse_with_limits(input: &str, limits: &Limits) -> Result<Value, Error> {
+    let mut cur = Cursor::with_limits(input, limits);
     parser::parse_document(&mut cur)
 }
 

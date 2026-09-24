@@ -184,3 +184,20 @@ fn nesting_limit_matches_text() {
     bytes.extend([0x0B, 1].repeat(1_000_000));
     assert!(decode(&bytes).is_err());
 }
+
+#[test]
+fn caller_depth_limit_applies_and_clamps() {
+    use super::decode_with_limits;
+    use crate::limits::Limits;
+    use crate::text::parse_with_limits;
+    use crate::value::MAX_DEPTH;
+    let bytes = encode(&parse_map("a = [[1]]\n"));
+    assert!(decode_with_limits(&bytes, &Limits { max_depth: 2, ..Limits::default() }).is_ok());
+    assert!(decode_with_limits(&bytes, &Limits { max_depth: 1, ..Limits::default() }).is_err());
+    assert!(parse_with_limits("a = [[1]]", &Limits { max_depth: 1, ..Limits::default() }).is_err());
+
+    // raising past MAX_DEPTH doesn't raise stack budget
+    let high = Limits { max_depth: u32::MAX, ..Limits::default() };
+    let deep = format!("a = {}{}\n", "[".repeat(MAX_DEPTH as usize + 1), "]".repeat(MAX_DEPTH as usize + 1));
+    assert!(parse_with_limits(&deep, &high).is_err());
+}

@@ -1,10 +1,10 @@
-use crate::value::{Date, Datetime, Float, Int, LocalDateTime, MAX_DEPTH, Map, OffsetDateTime, Time, Value};
+use crate::value::{Date, Datetime, Float, Int, LocalDateTime, Map, OffsetDateTime, Time, Value};
 
 use crate::binary::encode::{MAGIC, VERSION};
 use crate::binary::error::Error;
 use crate::binary::varint::decode_varint;
 
-pub fn decode_document(bytes: &[u8]) -> Result<Map, Error> {
+pub fn decode_document(bytes: &[u8], max_depth: u32) -> Result<Map, Error> {
     let mut pos = 0;
     let magic = read_bytes(bytes, &mut pos, 4)?;
     if magic != MAGIC {
@@ -18,7 +18,7 @@ pub fn decode_document(bytes: &[u8]) -> Result<Map, Error> {
     if tag != 0x0C {
         return Err(Error::new(pos - 1, format!("expected map tag 0x0C at document root, found 0x{tag:02X}")));
     }
-    let root = decode_map(bytes, &mut pos, 0)?;
+    let root = decode_map(bytes, &mut pos, Depth { at: 0, max: max_depth })?;
     if pos != bytes.len() {
         return Err(Error::new(pos, "trailing bytes after document"));
     }
@@ -27,13 +27,13 @@ pub fn decode_document(bytes: &[u8]) -> Result<Map, Error> {
 
 /// Decodes `value_bytes` — a document's root map with no magic/version
 /// prefix (the form used by envelope payloads and document hashing).
-pub fn decode_value_bytes(bytes: &[u8]) -> Result<Map, Error> {
+pub fn decode_value_bytes(bytes: &[u8], max_depth: u32) -> Result<Map, Error> {
     let mut pos = 0;
     let tag = read_u8(bytes, &mut pos)?;
     if tag != 0x0C {
         return Err(Error::new(pos - 1, format!("expected map tag 0x0C at document root, found 0x{tag:02X}")));
     }
-    let root = decode_map(bytes, &mut pos, 0)?;
+    let root = decode_map(bytes, &mut pos, Depth { at: 0, max: max_depth })?;
     if pos != bytes.len() {
         return Err(Error::new(pos, "trailing bytes after document"));
     }
@@ -62,8 +62,14 @@ fn read_array<const N: usize>(bytes: &[u8], pos: &mut usize) -> Result<[u8; N], 
     Ok(arr)
 }
 
-/// `depth` = arrays/maps around this value, below root.
-fn decode_value(bytes: &[u8], pos: &mut usize, depth: u32) -> Result<Value, Error> {
+/// `at` = arrays/maps around a value, below root.
+#[derive(Clone, Copy)]
+struct Depth {
+    at: u32,
+    max: u32,
+}
+
+fn decode_value(bytes: &[u8], pos: &mut usize, depth: Depth) -> Result<Value, Error> {
     let tag = read_u8(bytes, pos)?;
     match tag {
         0x00 => Ok(Value::Null),
@@ -78,10 +84,11 @@ fn decode_value(bytes: &[u8], pos: &mut usize, depth: u32) -> Result<Value, Erro
         0x09 => decode_local_datetime(bytes, pos).map(|ldt| Value::Datetime(Datetime::Local(ldt))),
         0x0A => decode_offset_datetime(bytes, pos).map(|odt| Value::Datetime(Datetime::Offset(odt))),
         0x0B | 0x0C => {
-            if depth >= MAX_DEPTH {
-                return Err(Error::new(*pos - 1, format!("nested deeper than {MAX_DEPTH}")));
+            if depth.at >= depth.max {
+                return Err(Error::new(*pos - 1, format!("nested deeper than {}", depth.max)));
             }
-            if tag == 0x0B { decode_array(bytes, pos, depth + 1) } else { decode_map(bytes, pos, depth + 1).map(Value::Map) }
+            let inner = Depth { at: depth.at + 1, ..depth };
+            if tag == 0x0B { decode_array(bytes, pos, inner) } else { decode_map(bytes, pos, inner).map(Value::Map) }
         }
         other => Err(Error::new(*pos - 1, format!("unknown or reserved tag 0x{other:02X}"))),
     }
@@ -150,7 +157,7 @@ fn decode_offset_datetime(bytes: &[u8], pos: &mut usize) -> Result<OffsetDateTim
     OffsetDateTime::new(datetime, offset_minutes).map_err(|_| Error::new(start, "offset out of range"))
 }
 
-fn decode_array(bytes: &[u8], pos: &mut usize, depth: u32) -> Result<Value, Error> {
+fn decode_array(bytes: &[u8], pos: &mut usize, depth: Depth) -> Result<Value, Error> {
     let count = decode_varint(bytes, pos)?;
     let mut items = Vec::new();
     for _ in 0..count {
@@ -159,7 +166,7 @@ fn decode_array(bytes: &[u8], pos: &mut usize, depth: u32) -> Result<Value, Erro
     Ok(Value::Array(items))
 }
 
-fn decode_map(bytes: &[u8], pos: &mut usize, depth: u32) -> Result<Map, Error> {
+fn decode_map(bytes: &[u8], pos: &mut usize, depth: Depth) -> Result<Map, Error> {
     let count = decode_varint(bytes, pos)?;
     let mut map = Map::new();
     let mut last_key: Option<String> = None;

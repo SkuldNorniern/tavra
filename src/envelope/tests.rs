@@ -164,3 +164,21 @@ fn rejects_hostile_kdf_params_before_deriving() {
     let err = open(&bytes, &OpenMode::Password(b"pw"), None).unwrap_err();
     assert!(err.to_string().contains("exceed limits"), "{err}");
 }
+
+#[test]
+fn caller_limits_apply_on_open() {
+    use crate::limits::Limits;
+    let root = parse_map(&format!("a = [[[\"{}\"]]]\n", "x".repeat(4096)));
+
+    let bytes = seal(&root, &SealOptions { mode: SealMode::None, compress: true, sign_with: None });
+    assert!(open_with_limits(&bytes, &OpenMode::None, None, &Limits::default()).is_ok());
+    let small = Limits { max_decompressed_len: 1024, ..Limits::default() };
+    assert!(open_with_limits(&bytes, &OpenMode::None, None, &small).is_err());
+    let shallow = Limits { max_depth: 2, ..Limits::default() };
+    assert!(open_with_limits(&bytes, &OpenMode::None, None, &shallow).is_err());
+
+    let bytes = seal(&root, &SealOptions { mode: SealMode::Password(b"pw"), compress: false, sign_with: None });
+    let cheap_kdf = Limits { max_kdf_m_cost: 1024, ..Limits::default() };
+    let err = open_with_limits(&bytes, &OpenMode::Password(b"pw"), None, &cheap_kdf).unwrap_err();
+    assert!(err.to_string().contains("exceed limits"), "{err}");
+}

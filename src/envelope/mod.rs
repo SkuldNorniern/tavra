@@ -13,6 +13,7 @@ pub use error::Error;
 pub use header::{Flags, KdfParams};
 
 use crate::binary;
+use crate::limits::Limits;
 use crate::value::Map;
 
 /// How to protect the document when sealing.
@@ -38,7 +39,7 @@ pub fn seal(root: &Map, opts: &SealOptions<'_>) -> Vec<u8> {
     let value_bytes = binary::encode_value_bytes(root);
 
     // store raw if compression fails or payload is over open's limit
-    let compressed = (opts.compress && value_bytes.len() <= compress::MAX_DECOMPRESSED_LEN)
+    let compressed = (opts.compress && value_bytes.len() <= Limits::default().max_decompressed_len)
         .then(|| compress::compress(&value_bytes).ok())
         .flatten();
     let is_compressed = compressed.is_some();
@@ -98,6 +99,16 @@ pub enum OpenMode<'a> {
 /// document. With `verify_with`, document must be signed by that key;
 /// unsigned is rejected. Without it, signature is not checked.
 pub fn open(bytes: &[u8], mode: &OpenMode<'_>, verify_with: Option<&[u8; sign::PUBLIC_KEY_LEN]>) -> Result<Map, Error> {
+    open_with_limits(bytes, mode, verify_with, &Limits::default())
+}
+
+/// [`open`] with caller's limits, e.g. lower ones for a network service.
+pub fn open_with_limits(
+    bytes: &[u8],
+    mode: &OpenMode<'_>,
+    verify_with: Option<&[u8; sign::PUBLIC_KEY_LEN]>,
+    limits: &Limits,
+) -> Result<Map, Error> {
     let mut pos = 0;
     let magic = header::read_bytes(bytes, &mut pos, 4)?;
     if magic != header::MAGIC {
@@ -154,6 +165,7 @@ pub fn open(bytes: &[u8], mode: &OpenMode<'_>, verify_with: Option<&[u8; sign::P
         }
         (true, OpenMode::Password(password)) => {
             let params = kdf_params.as_ref().ok_or_else(|| Error::new("missing KDF parameters"))?;
+            kdf::check_limits(params, limits)?;
             let key = kdf::derive_key(password, params)?;
             let nonce = nonce.ok_or_else(|| Error::new("missing nonce"))?;
             aead::decrypt(&key, &nonce, aad, payload)?
@@ -161,14 +173,14 @@ pub fn open(bytes: &[u8], mode: &OpenMode<'_>, verify_with: Option<&[u8; sign::P
         (true, OpenMode::None) => return Err(Error::new("document is encrypted; a key or password is required")),
     };
 
-    let value_bytes = if flags.compressed { compress::decompress(&plaintext)? } else { plaintext };
+    let value_bytes = if flags.compressed { compress::decompress_limited(&plaintext, limits.max_decompressed_len)? } else { plaintext };
 
     if let Some(pk) = verify_with {
         let sig = signature.ok_or_else(|| Error::new("signature required but document is unsigned"))?;
         sign::verify(pk, &value_bytes, &sig)?;
     }
 
-    binary::decode_value_bytes(&value_bytes).map_err(|e| Error::new(format!("invalid document: {e}")))
+    binary::decode_value_bytes_with_limits(&value_bytes, limits).map_err(|e| Error::new(format!("invalid document: {e}")))
 }
 
 /// Generates a fresh 32-byte XChaCha20-Poly1305 key.

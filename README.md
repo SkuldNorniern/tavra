@@ -67,6 +67,12 @@ which ones are required, enums, whether a map is closed to unlisted keys.
 There's also one-way import from JSON, TOML, and YAML for migrating
 existing files.
 
+Decoding untrusted input has limits on nesting depth, zstd output, and
+Argon2id cost. Defaults are in `tavra::Limits`; `text::parse_with_limits`,
+`binary::decode_with_limits` and `envelope::open_with_limits` take your
+own, like lower ones for a server. Only in Rust for now, bindings use
+defaults.
+
 ## Bindings
 
 The core is Rust, but you don't have to be. `tavra-c`, `tavra-python`, and
