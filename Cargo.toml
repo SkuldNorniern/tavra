@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["tavra-c", "tavra-python"]
+exclude = ["fuzz"]
 
 [package]
 name = "tavra"

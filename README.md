@@ -121,6 +121,13 @@ dotnet test tavra-csharp/Tavra.Tests/Tavra.Tests.csproj
 Text parsing and formatting, the binary codec, the envelope pipeline,
 schema validation, JSON/TOML/YAML import, and the C/Python/C# bindings are
 all working and tested end to end.
-A few things are still missing: no export back out to JSON/TOML/YAML, no
-LSP, and the current adversarial test coverage is hand-written rather than
-fuzzed.
+A few things are still missing: no export back out to JSON/TOML/YAML and
+no LSP.
+
+Fuzz targets for `.tav`, `.tavb`, `.tave` and schema are in `fuzz/`
+(needs nightly and cargo-fuzz):
+
+```
+cd fuzz
+cargo +nightly fuzz run text     # also binary, envelope, schema
+```
