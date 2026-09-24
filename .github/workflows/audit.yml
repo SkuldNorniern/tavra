@@ -3,6 +3,11 @@ name: rust-audit
 on:
   schedule:
     - cron: "20 22 * * 3"
+  push:
+    branches: [main]
+    paths: ["**/Cargo.toml", "**/Cargo.lock", ".github/workflows/audit.yml"]
+  pull_request:
+    paths: ["**/Cargo.toml", "**/Cargo.lock", ".github/workflows/audit.yml"]
   workflow_dispatch: {}
 
 jobs:
@@ -10,19 +15,13 @@ jobs:
     name: Run cargo-audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo-audit
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-audit
-          key: ${{ runner.os }}-cargo-audit
-
       - name: Install cargo-audit
-        run: cargo install cargo-audit || true
+        run: cargo install cargo-audit --locked
 
       - name: Run audit
         run: cargo audit
