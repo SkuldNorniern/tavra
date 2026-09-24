@@ -76,9 +76,11 @@ seal/open):
 
 - **tavra-c**: a plain C API (`tavra-c/include/tavra.h`), cdylib +
   staticlib. Everything else wraps this or the Rust crate directly.
-- **tavra-python**: full parity with the Rust API via PyO3 — the value
-  model maps onto native `dict`/`list`/`str`/`bytes`/`datetime.*`. Built
-  with `maturin`.
+- **tavra-python**: same API as Rust via PyO3 — the value model maps onto
+  native `dict`/`list`/`str`/`bytes`/`datetime.*`. Built with `maturin`.
+  Python `datetime` can't hold everything Tavra can: nanoseconds are
+  truncated to microseconds, and a leap second (`:60`) raises
+  `ValueError`.
 - **tavra-csharp**: a `netstandard2.1` class library over `tavra-c`'s C
   ABI via P/Invoke — the round-trip surface only, aimed at Unity.
 

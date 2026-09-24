@@ -53,6 +53,15 @@ fn int_to_py(py: Python<'_>, i: Int) -> PyResult<Py<PyAny>> {
 }
 
 fn datetime_to_py(py: Python<'_>, dt: &Datetime) -> PyResult<Py<PyAny>> {
+    let time = match dt {
+        Datetime::Date(_) => None,
+        Datetime::Time(t) => Some(t),
+        Datetime::Local(ldt) => Some(&ldt.time),
+        Datetime::Offset(odt) => Some(&odt.datetime.time),
+    };
+    if time.is_some_and(|t| t.second() == 60) {
+        return Err(PyValueError::new_err("leap second (:60) has no Python datetime equivalent"));
+    }
     let datetime_mod = py.import("datetime")?;
     match dt {
         Datetime::Date(d) => {
