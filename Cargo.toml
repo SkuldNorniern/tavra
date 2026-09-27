@@ -5,7 +5,7 @@ exclude = ["fuzz"]
 
 [package]
 name = "tavra"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "A readable data/config format with a canonical binary form and an encrypted, signed envelope"
 license = "Apache-2.0"
@@ -13,6 +13,7 @@ repository = "https://github.com/SkuldNorniern/tavra"
 readme = "README.md"
 keywords = ["serialization", "config", "encryption", "binary-format"]
 categories = ["encoding", "parser-implementations", "cryptography"]
+include = ["/src/**", "/examples/**", "/README.md", "/LICENSE"]
 
 [workspace.lints.clippy]
 absolute_paths = "deny"
